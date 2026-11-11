@@ -1,0 +1,2495 @@
+[
+  {
+    "code": "C_COMPTANT",
+    "nom": "Consultation Médicale en Cabinet",
+    "specialite": "MEDECINE GENERALE",
+    "montantGlobal": 40,
+    "partCnam": 0,
+    "partPatient": 40,
+    "favori": true
+  },
+  {
+    "code": "C_MO",
+    "nom": "Consultation CNAM MO (Filière Privée)",
+    "specialite": "MEDECINE GENERALE / CNAM",
+    "montantGlobal": 30,
+    "partCnam": 21,
+    "partPatient": 9,
+    "favori": true
+  },
+  {
+    "code": "C_APCI",
+    "nom": "Consultation CNAM APCI (Tiers-Payant 100%)",
+    "specialite": "MEDECINE GENERALE / CNAM APCI",
+    "montantGlobal": 30,
+    "partCnam": 30,
+    "partPatient": 0,
+    "favori": true
+  },
+  {
+    "code": "ECG_12",
+    "nom": "Électrocardiogramme (ECG 12 dérivations)",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 25,
+    "partCnam": 20,
+    "partPatient": 5,
+    "favori": true
+  },
+  {
+    "code": "V_DOM",
+    "nom": "Visite Médicale à Domicile",
+    "specialite": "MEDECINE GENERALE",
+    "montantGlobal": 60,
+    "partCnam": 0,
+    "partPatient": 60,
+    "favori": true
+  },
+  {
+    "code": "V_FERIE",
+    "nom": "Visite Dimanche / Nuit / Jours Fériés",
+    "specialite": "MEDECINE GENERALE",
+    "montantGlobal": 80,
+    "partCnam": 0,
+    "partPatient": 80,
+    "favori": false
+  },
+  {
+    "code": "HOLTER_MAPA",
+    "nom": "Holter Tensionnel (MAPA)",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 0,
+    "partPatient": 120,
+    "favori": true
+  },
+  {
+    "code": "MBB020450",
+    "nom": "Abrasion des téguments au moyen d'une instrumentation rotative ou d'un matériel",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 36,
+    "partCnam": 28.8,
+    "partPatient": 7.2,
+    "favori": false
+  },
+  {
+    "code": "MMD010270",
+    "nom": "Acte d'échographie ou de Doppler: Examen polyvasculaire en un seul temps",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MFD010210",
+    "nom": "Adaptation à l'oxygénothérapie dans le cadre d'une insuffisance respiratoire chronique grave pour malade hospitalisé: surveillance 24 premières heures",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCC010270",
+    "nom": "Adaptation de lentilles thérapeutiques ou lentilles pansements",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MGG000360",
+    "nom": "Anesthésie sphinctérienne",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MCC010020",
+    "nom": "Angiographie rétinienne fluorescéinique (clichés photographiques compris)",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 105,
+    "partCnam": 84,
+    "partPatient": 21,
+    "favori": false
+  },
+  {
+    "code": "MGG000010",
+    "nom": "Anuscopie",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MGG000020",
+    "nom": "Anuscopie + biopsie",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MAD030040",
+    "nom": "Arthroscopie diagnostique (y compris biopsies)",
+    "specialite": "ORTHOPEDIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MGC000240",
+    "nom": "Aspiration continue et rééquilibration hydro-électrolytique concomitante pour occlusion intestinale, par jour",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD020130",
+    "nom": "Aspiration ou drainage endocavitaire",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MCD010040",
+    "nom": "Audiométrie tonale avec impédancemetrie",
+    "specialite": "ORL",
+    "montantGlobal": 75,
+    "partCnam": 60,
+    "partPatient": 15,
+    "favori": false
+  },
+  {
+    "code": "MCC010130",
+    "nom": "Bilan électrophysiologique oculaire comportant:  électrorétinographie, électro-oculogramme et potentiels évoqués visuels)",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MGB000110",
+    "nom": "Biofeedback Ano-rectale, sous contrôle manométrique",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCC010230",
+    "nom": "Biomicroscopie aux ultra-sons",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCC010160",
+    "nom": "Biomicroscopie du fond de l'oeil avec verre de contact à trois miroirs ou panoramique, associée ou non à une gonioscopie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 33,
+    "partCnam": 26.4,
+    "partPatient": 6.6,
+    "favori": false
+  },
+  {
+    "code": "MCC040240",
+    "nom": "Biopsie de la cornée",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MJB010060",
+    "nom": "Biopsie du col",
+    "specialite": "GYNECO",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MGC000200",
+    "nom": "Biopsie du grêle (y compris le contrôle radioscopique)",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MGB000120",
+    "nom": "Breath Test à l'Urée C13 pour hélicobacter Pylori",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MFD010300",
+    "nom": "Bronchographie de contraste unilatérale",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MFE000040",
+    "nom": "Bronchoscopies itératives, bronchoaspiration dans un but thérapeutique",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFD010110",
+    "nom": "Capacité de transfert du CO en apnée ou en état stable",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFF010260",
+    "nom": "Capillaroscopie",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MBB020380",
+    "nom": "Capillaroscopie",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCC070010",
+    "nom": "Capsulotomie et Iridectomie Laser Yag",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MGC000260",
+    "nom": "Cathétérisme de la veine ombilicale",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MHF000010",
+    "nom": "Cathétérisme pour rétention d'urine",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MHF000030",
+    "nom": "Changement de sonde à demeure (type cystostomie)",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MGC000220",
+    "nom": "Changement de sonde à demeure (type gastrostomie)",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MEB000420",
+    "nom": "Chimio-nucléolyse percutanée d'une Hernie discale lombaire",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MFF010220",
+    "nom": "Choc électrique par défibrillateur (quelque soit le nombre au cours de 24 heures",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MGE000030",
+    "nom": "Cholangio-pancréatographie rétrograde par voie endoscopique (CPRE)",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 172.5,
+    "partCnam": 138,
+    "partPatient": 34.5,
+    "favori": false
+  },
+  {
+    "code": "MGE000020",
+    "nom": "Cholangiographie trans-hépatique (CTH)",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MGG000050",
+    "nom": "Colofibroscopie : du colon gauche",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MGG000060",
+    "nom": "Colofibroscopie :Au delà du colon gauche",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 165,
+    "partCnam": 132,
+    "partPatient": 33,
+    "favori": false
+  },
+  {
+    "code": "MGG000080",
+    "nom": "Colofibroscopie: Avec ablation d'un ou plusieurs polypes en supplément",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MGG000070",
+    "nom": "Colofibroscopie: Avec biopsie, en supplément",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MJB010050",
+    "nom": "Colposcopie avec ou sans prélèvement pour examen histologique",
+    "specialite": "GYNECO",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MGB000100",
+    "nom": "Compliance Ano-rectal",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCC010080",
+    "nom": "Courbe d'adaptation à l'obscurité",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 39,
+    "partCnam": 31.2,
+    "partPatient": 7.8,
+    "favori": false
+  },
+  {
+    "code": "MCC010190",
+    "nom": "Courbe de tension (quatre fois par jour pendant cinq jours)",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 39,
+    "partCnam": 31.2,
+    "partPatient": 7.8,
+    "favori": false
+  },
+  {
+    "code": "MDC000080",
+    "nom": "Cryothérapie ou laser des papillomes endolaryngés",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MDD000060",
+    "nom": "Cytoponction thyroïdienne",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MGD000280",
+    "nom": "Désobstruction de l'intestin grêle par lavement intestinal pour iléus méconial, avec contrôle radiologique",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MID000110",
+    "nom": "Détorsion manuelle du cordon spermatique",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MDE000030",
+    "nom": "Dilalation oesophagienne, maximum 4 séances en six mois. Par séance",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MHG000020",
+    "nom": "Dilatation de l'urètre pour rétrécissement de toute origine, chaque séance",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MDC000070",
+    "nom": "Dilatation laryngée, par séance",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MMD010030",
+    "nom": "E.T.O : Echocardiogramme avec tracé électrocardiographi.et analyse quali. et quant. avec au Doppler pulsé par voie transoesophagienne",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MMD010020",
+    "nom": "Echo-Doppler cardiaque",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MCB010080",
+    "nom": "Echoencéphalogramme",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD010290",
+    "nom": "Echoendoscopie trachéobronchique",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MCC010220",
+    "nom": "Echographie oculaire avec calcul des différents paramètres et de la puissance du cristallin artificiel",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 57,
+    "partCnam": 45.6,
+    "partPatient": 11.4,
+    "favori": false
+  },
+  {
+    "code": "MCC010210",
+    "nom": "Echographie oculaire et orbitaire (en mode B ou en modes A et B)",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 57,
+    "partCnam": 45.6,
+    "partPatient": 11.4,
+    "favori": false
+  },
+  {
+    "code": "MCC010200",
+    "nom": "Echographie simple en mode A",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 27,
+    "partCnam": 21.6,
+    "partPatient": 5.4,
+    "favori": false
+  },
+  {
+    "code": "MCB010030",
+    "nom": "EEG avec cartographie",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MCB010040",
+    "nom": "EEG de 24 h ambulatoire (\"HOLTER EEG\")",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 165,
+    "partCnam": 132,
+    "partPatient": 33,
+    "favori": false
+  },
+  {
+    "code": "MCB010060",
+    "nom": "EEG de sommeil (ne se cumule pas avec l'enregistrement polysomnographique)",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 157.5,
+    "partCnam": 126,
+    "partPatient": 31.5,
+    "favori": false
+  },
+  {
+    "code": "MCB010020",
+    "nom": "EEG standard",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010050",
+    "nom": "EEG vidéo",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 157.5,
+    "partCnam": 126,
+    "partPatient": 31.5,
+    "favori": false
+  },
+  {
+    "code": "MFD010180",
+    "nom": "Efficacité de la pression positive nasale sur les échanges gazeux (saturation)",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCC010120",
+    "nom": "Electro-oculogramme (oculographie sensorielle et motrice)",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010260",
+    "nom": "Electro-oculographie,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010220",
+    "nom": "Electro-rétinogramme:  Dynamique,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010210",
+    "nom": "Electro-rétinogramme: Simple,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MFF010010",
+    "nom": "Electrocardiogramme -12 dérivations",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 18,
+    "partCnam": 14.4,
+    "partPatient": 3.6,
+    "favori": false
+  },
+  {
+    "code": "MFF010020",
+    "nom": "Electrocardiogramme comportant 12 dérivations pratiqué au domicile du malade",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 36,
+    "partCnam": 28.8,
+    "partPatient": 7.2,
+    "favori": false
+  },
+  {
+    "code": "MCC010110",
+    "nom": "Electrorétinographie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010310",
+    "nom": "EMG complet (détection, VCN motrices et sensitives, reflexe H)",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MCB010320",
+    "nom": "EMG global (de surface)",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MFF010070",
+    "nom": "Enregistrement d'un phonomécanogramme avec une dérivation électrocardio-graphique, d'au moins 5 foyers, l'enregistrement des courbes mécanographiques",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCB010330",
+    "nom": "Enregistrement du sommeil:  Polygraphie simple ambulatoire (\"HOLTER\") comportant EEG,EOG et EMG",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 165,
+    "partCnam": 132,
+    "partPatient": 33,
+    "favori": false
+  },
+  {
+    "code": "MBB020370",
+    "nom": "Epilation par électrolyse ou électrocoagulation : la séance d'une demi -heure",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MDC000030",
+    "nom": "Epluchage du larynx sous laryngoscopie en suspension",
+    "specialite": "ORL",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MFF010030",
+    "nom": "Epreuve d'effort sous ECG",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCB010280",
+    "nom": "Epreuves vestibulaires et d'oculomotricité,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MMD010250",
+    "nom": "Etude cervico-encéphalique et/ou des vaisseaux des membres supérieurs",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MKB010070",
+    "nom": "Evaluation instrumentale de la déficience de contrôle vésico-sphinctérien : Bilan complet",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 165,
+    "partCnam": 132,
+    "partPatient": 33,
+    "favori": false
+  },
+  {
+    "code": "MKB010050",
+    "nom": "Evaluation instrumentale de la déficience de contrôle vésico-sphinctérien : Cystomanométrie",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MKB010030",
+    "nom": "Evaluation instrumentale de la déficience de contrôle vésico-sphinctérien : Débimétrie",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MKB010040",
+    "nom": "Evaluation instrumentale de la déficience de contrôle vésico-sphinctérien : Profilométrie",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MKB010060",
+    "nom": "Evaluation instrumentale de la déficience de contrôle vésico-sphinctérien : Profilométrie + cystomanométrie",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MCD010030",
+    "nom": "Examen audiométrique spécial de l'enfant",
+    "specialite": "ORL",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCD010010",
+    "nom": "Examen audiométrique tonal ou vocal",
+    "specialite": "ORL",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCB010110",
+    "nom": "Examen de stimulo-détection avec réception musculaire et mesures chronologiques,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MMD010050",
+    "nom": "Examen échographique d'un organe superficiel ou thoracique KE",
+    "specialite": "TOUS",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MMD010060",
+    "nom": "Examen échographique d'un ou plusieurs organes intra-abdominaux KE",
+    "specialite": "TOUS",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MMD010070",
+    "nom": "Examen échographique d'un ou plusieurs organes intra-pelviens, à l'exception de la surveillance du monitorage de l'ovulation",
+    "specialite": "TOUS",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MMD010090",
+    "nom": "Examen échographique du système urinaire : reins, uretère, vessie et, le cas échéant, prostate",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MMD010040",
+    "nom": "Examen échographique mammaire (unilatéral ou bilatéral) KE",
+    "specialite": "GYNECO",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MMD010080",
+    "nom": "Examen échographique pour surveillance du monitorage de l'ovulation",
+    "specialite": "GYNECO",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MCB010070",
+    "nom": "Examen électrocorticographique",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 157.5,
+    "partCnam": 126,
+    "partPatient": 31.5,
+    "favori": false
+  },
+  {
+    "code": "MCB010100",
+    "nom": "Examen électromyographique avec enregistrement photographique à définition normale ou recherche de spasmophilie avec épreuve du garrot sous EMG",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010090",
+    "nom": "Examen électromyographique par oscilloscope, phonie ou enregistrement photo-graphique à faible définition",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCC010140",
+    "nom": "Examen fonctionnel détaillé de la motilité oculaire dans le strabisme et les hétérophories",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCD010060",
+    "nom": "Examen labyrinthique calorique",
+    "specialite": "ORL",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCD010070",
+    "nom": "Examen labyrinthique postural",
+    "specialite": "ORL",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCC010150",
+    "nom": "Examen sensori-moteur dans le strabisme et l'amblyopie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCC010090",
+    "nom": "Exploration chromatique centrale et périphérique",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCC010100",
+    "nom": "Exploration du sens chromatique au test de Farnsworrth 100 HUE, assisté par ordinateur avec graphique et score",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 39,
+    "partCnam": 31.2,
+    "partPatient": 7.8,
+    "favori": false
+  },
+  {
+    "code": "MHB000200",
+    "nom": "Exploration urodynamique du bas appareil urinaire:  Cytomanométrie",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MHB000210",
+    "nom": "Exploration urodynamique du bas appareil urinaire:  Cytomanométrie + EMG",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 157.5,
+    "partCnam": 126,
+    "partPatient": 31.5,
+    "favori": false
+  },
+  {
+    "code": "MHB000230",
+    "nom": "Exploration urodynamique du bas appareil urinaire: Débimétrie",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MHB000220",
+    "nom": "Exploration urodynamique du bas appareil urinaire: Profil urétral",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCD010080",
+    "nom": "Exploration vestibulaire avec enregistrement VNG,ENG...",
+    "specialite": "ORL",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MDC000110",
+    "nom": "Extraction d'un corps étranger de l'hypopharynx ou du larynx",
+    "specialite": "ORL",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFD010260",
+    "nom": "Fibroscopie avec aspiration et ou brossage et ou biopsies bronchiques",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MGC000180",
+    "nom": "Fibroscopie avec polypectomie",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MFD010250",
+    "nom": "Fibroscopie bronchique",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MGC000160",
+    "nom": "Fibroscopie oeso-gastro-duodénale",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MGC000170",
+    "nom": "Fibroscopie oeso-gastro-jéjunale avec biopsie",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCC010010",
+    "nom": "Fluoroscopie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCC010310",
+    "nom": "Fond d'oeil par ophtalmoscopie indirect chez le prématuré ou le nouveau-né",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MFB000010",
+    "nom": "Galactographie",
+    "specialite": "RADIOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCC010170",
+    "nom": "Gonioscopie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 27,
+    "partCnam": 21.6,
+    "partPatient": 5.4,
+    "favori": false
+  },
+  {
+    "code": "MCE010110",
+    "nom": "Hémostase nasale pour épistaxis",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFF010040",
+    "nom": "Holter Rythmique (Enregistrement ECG selon la méthode de Holter)",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MFF010060",
+    "nom": "Holter tensionnel",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MBB010030",
+    "nom": "Hypo-sensibilisation spécifique par injection d'un ou plusieurs allergènes",
+    "specialite": "ALERGOLOGIE",
+    "montantGlobal": 9,
+    "partCnam": 7.2,
+    "partPatient": 1.8,
+    "favori": false
+  },
+  {
+    "code": "MCD010020",
+    "nom": "Impédancemétrie",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MBB000050",
+    "nom": "Infiltration médicamenteuse intra ou sous-lésionnelle, unique ou multiple",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MHG000010",
+    "nom": "Injection de produit de contraste pour urétro-cystographie retrograde",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MBC010050",
+    "nom": "Injection intra-artérielle",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MFE000050",
+    "nom": "Injection intra-bronchique dans un but diagnostic ou thérapeutique, anésthésie comprise",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MBC010010",
+    "nom": "Injection intra-veineuse",
+    "specialite": "TOUS",
+    "montantGlobal": 6,
+    "partCnam": 4.8,
+    "partPatient": 1.2,
+    "favori": false
+  },
+  {
+    "code": "MCC050160",
+    "nom": "Injection intra-vitréenne à visée anti-inflammatoire ou anti-infectieuse y compris le FO avant et après injection",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MAD020010",
+    "nom": "Injection intramusculaire",
+    "specialite": "TOUS",
+    "montantGlobal": 3,
+    "partCnam": 2.4,
+    "partPatient": 0.6,
+    "favori": false
+  },
+  {
+    "code": "MCC050120",
+    "nom": "Injection latérobulbaire ou péribulbaire",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MGE000220",
+    "nom": "Injection post-opératoire dans les canaux excréteurs d'un produit de contraste pour prise  de clichés avec manométrie",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCC020160",
+    "nom": "Injection rétrobulbaire en série KE",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 24,
+    "partCnam": 19.2,
+    "partPatient": 4.8,
+    "favori": false
+  },
+  {
+    "code": "MAF010190",
+    "nom": "Injection sclérosante intra-vasculaire pour varices, quel que soit le nombre d'injections",
+    "specialite": "ANGEOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MCC040130",
+    "nom": "Injection sous conjontivale",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MBB000010",
+    "nom": "Injection sous-cutanée, intradermique",
+    "specialite": "ANGEOLOGIE",
+    "montantGlobal": 3,
+    "partCnam": 2.4,
+    "partPatient": 0.6,
+    "favori": false
+  },
+  {
+    "code": "MCD030030",
+    "nom": "Injection transtympanique, avec maximum de quatre",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MGG000340",
+    "nom": "Injections sclérosantes pour hémorroïdes internes (avec un maximum de dix séance), par séance",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MJD000030",
+    "nom": "Insémination artificielle quelle que soit la technique",
+    "specialite": "GYNECO",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MJB010030",
+    "nom": "Insufflation tubaire, injection intra-utérine d'un produit de contraste ou d'une substance médicamenteuse",
+    "specialite": "GYNECO",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MDE000150",
+    "nom": "Intubation trachéale isolée en dehors d'une intervention chirurgicale",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MDE000160",
+    "nom": "Intubation trachéo-bronchique sélective pour une intervention chirurgicale endo-thoracique, en supplément",
+    "specialite": "ORL",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MBB010010",
+    "nom": "Inventaire allergologique avec tests cutanés en scarification ou épicutanés",
+    "specialite": "ALERGOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCC070040",
+    "nom": "Iridoplastie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MCC090100",
+    "nom": "Iridotomie ou iridectomie périphérique au laser",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MCC010280",
+    "nom": "Kératesthésie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCC010060",
+    "nom": "Kératométrie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 27,
+    "partCnam": 21.6,
+    "partPatient": 5.4,
+    "favori": false
+  },
+  {
+    "code": "MFD010190",
+    "nom": "La pression négative expiratoire (Nep)",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MFD010310",
+    "nom": "Lavage bronchoalvéolaire",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MCE020020",
+    "nom": "Lavage de sinus par ponction ou par méthode de proëtz avec maximum de dix séance",
+    "specialite": "ORL",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MGC000140",
+    "nom": "Lavage gastrique",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFF010050",
+    "nom": "Le Supplément pour doppler pulsé en cas d'enregistrement continu de l'electrocargramme selon la méthode de Holter",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCC070150",
+    "nom": "Libération de synéchies ou de brides post opératoires au laser Yag",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MGB000090",
+    "nom": "Manométrie digestive",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 105,
+    "partCnam": 84,
+    "partPatient": 21,
+    "favori": false
+  },
+  {
+    "code": "MFE000020",
+    "nom": "Médiastinoscopie ou oesophagoscopie ou oesofibroscopie ou bronchoscopie par acte",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MFE000030",
+    "nom": "Médiastinoscopie ou oesophagoscopie ou oesofibroscopie ou bronchoscopie par acte avec biopsie",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MFD010080",
+    "nom": "Mesure de la consommation maximale d'oxygène lors du test à l'exercice incrementiel",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 157.5,
+    "partCnam": 126,
+    "partPatient": 31.5,
+    "favori": false
+  },
+  {
+    "code": "MFD010100",
+    "nom": "Mesure de la force musculaire par dynamometrie isocinetique",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 157.5,
+    "partCnam": 126,
+    "partPatient": 31.5,
+    "favori": false
+  },
+  {
+    "code": "MFF010240",
+    "nom": "Mesure de la pression veineuse périphérique",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 24,
+    "partCnam": 19.2,
+    "partPatient": 4.8,
+    "favori": false
+  },
+  {
+    "code": "MFD010200",
+    "nom": "Mesure de la ventilation alvéolaire et étude des échanges pulmonaires par prélèvement simultané du gaz expiré et de sang artériel",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCB010120",
+    "nom": "Mesure de vitesse de conduction sensitive,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MCC010320",
+    "nom": "Mesure du tonus oculaire sous anesthésie générale",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MBC010080",
+    "nom": "Mise en place d'un cathéter veineux à demeure par ponction de la jugulaire, de la fémorale ou de la sous-clavière",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFD010330",
+    "nom": "Mise en route d'une CPAP ou surveillance",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFD010320",
+    "nom": "Mise en route d'une ventilation non invasive au masque",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MAD030160",
+    "nom": "Mobilisation d'une articulation sous anesthésie générale",
+    "specialite": "ORTHOPEDIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD010120",
+    "nom": "Monitoring du VEMS et du DEP (one-flow)",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MDC000040",
+    "nom": "Nasofibrolaryngoscopie aux optiques",
+    "specialite": "ORL",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MHB000160",
+    "nom": "Néphrostomie percutanée:  Avec extraction de calcul par sonde panier",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 165,
+    "partCnam": 132,
+    "partPatient": 33,
+    "favori": false
+  },
+  {
+    "code": "MHB000170",
+    "nom": "Néphrostomie percutanée: Avec électrocoagulation ou biopsie d'une lésion du haut appareil urinaire",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 165,
+    "partCnam": 132,
+    "partPatient": 33,
+    "favori": false
+  },
+  {
+    "code": "MBB020440",
+    "nom": "Nettoyage de peau et mise à plat des collections suppurées et kystiques , par séance, au max. 4 séances",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCD010050",
+    "nom": "Oto-émissions acoustiques",
+    "specialite": "ORL",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCC010300",
+    "nom": "Pachymétrie cornéenne",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MDC000060",
+    "nom": "Panendoscopie des voies aérodigestives sup. en salle d'op., bilan d'une lésion néoplasique, avec étude du larynx dans ses 3 étages, trachée, oesophage",
+    "specialite": "ORL",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MAF010240",
+    "nom": "Pansement d'un ulcère de jambe (détersion, épluchage et régularisation de la lésion) et pose d'une bande adhésive , maximum 2 par semaine",
+    "specialite": "ANGEOLOGIE",
+    "montantGlobal": 18,
+    "partCnam": 14.4,
+    "partPatient": 3.6,
+    "favori": false
+  },
+  {
+    "code": "MAF020250",
+    "nom": "Pansement d'un ulcère de jambe:  Les trois premières séances",
+    "specialite": "ANGEOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MAF020260",
+    "nom": "Pansement d'un ulcère de jambe: Les séances  suivantes à partir de la 4ème",
+    "specialite": "ANGEOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MAF010210",
+    "nom": "Pansements des ulcères de jambes : maximum de 02 par semaine",
+    "specialite": "ANGEOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MBC010070",
+    "nom": "Perfusion veineuse au cou ou au thorax.",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MBC010060",
+    "nom": "Perfusion veineuse aux membres",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MCC010070",
+    "nom": "Périmétrie et campimétrie quantitative",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 39,
+    "partCnam": 31.2,
+    "partPatient": 7.8,
+    "favori": false
+  },
+  {
+    "code": "MGB000080",
+    "nom": "PHmétrie oesophagienne de 24 H (non cumulable avec manométrie oesophagienne)",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MCC090070",
+    "nom": "Photocoagulation au Laser Yag (Cyclophotocoagulation au laser)",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MCC070020",
+    "nom": "Photocoagulation de l'Iris",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MFF010250",
+    "nom": "Pléthysmo-vasculaire",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MFD010040",
+    "nom": "Pléthysmographie : mesure de la compliance thoraco-pulmonaire",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MFD010030",
+    "nom": "Pléthysmographie : mesure des volumes et débits pulmonaires, des resistances et conductance bronchique",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MBC010040",
+    "nom": "Ponction artérielle percutanée.",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MAD030010",
+    "nom": "Ponction articulaire à l'aiguille ou au trocart sauf la hanche",
+    "specialite": "CHIRURGIE GENERALE,ORTHOPEDIE DENTO FACIALE,",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MAD030020",
+    "nom": "Ponction articulaire de la hanche à l'aiguille ou au trocart",
+    "specialite": "CHIRURGIE GENERALE,ORTHOPEDIE DENTO FACIALE,",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD020120",
+    "nom": "Ponction biopsie de la plèvre avec évacuation pleurale",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MIC000010",
+    "nom": "Ponction biopsie de la prostate",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MAD010010",
+    "nom": "Ponction biopsie osseuse",
+    "specialite": "CHIRURGIE GENERALE,ORTHOPEDIE DENTO FACIALE,",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MEB000120",
+    "nom": "Ponction biopsie vertébrale",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MAD020020",
+    "nom": "Ponction d'abcès froid (avec ou sans injection modificatrice) de grand volume",
+    "specialite": "CHIRURGIE GENERALE,ORTHOPEDIE DENTO FACIALE,",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MBB000040",
+    "nom": "Ponction d'abcès ou de ganglion",
+    "specialite": "TOUS",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MBC010020",
+    "nom": "Ponction d'un gros tronc veineux de la tête ou du cou",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 9,
+    "partCnam": 7.2,
+    "partPatient": 1.8,
+    "favori": false
+  },
+  {
+    "code": "MCC040140",
+    "nom": "Ponction de la chambre antérieure de l'oeil à visée diagnostique ou thérapeutique",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MFD020080",
+    "nom": "Ponction de la plèvre à but diagnostic ou thérapeutique",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 12,
+    "partCnam": 9.6,
+    "partPatient": 2.4,
+    "favori": false
+  },
+  {
+    "code": "MFF020010",
+    "nom": "Ponction du péricarde",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MGE000010",
+    "nom": "Ponction en vue d'une splénoportographie",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MGC000250",
+    "nom": "Ponction évacuatrice d'ascite",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD020110",
+    "nom": "Ponction évacuatrice de la plèvre (avec ou sans lavage)",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 36,
+    "partCnam": 28.8,
+    "partPatient": 7.2,
+    "favori": false
+  },
+  {
+    "code": "MCE020010",
+    "nom": "Ponction isolée du sinus maxillaire KE",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCB010010",
+    "nom": "Ponction lombaire avec ou sans injection médicamenteuse",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 24,
+    "partCnam": 19.2,
+    "partPatient": 4.8,
+    "favori": false
+  },
+  {
+    "code": "MHF000040",
+    "nom": "Ponction sus-pubienne pour cystographie",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MJB010020",
+    "nom": "Ponction transvaginale du Douglas",
+    "specialite": "GYNECO",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFF010130",
+    "nom": "Pose d'un cathéter endocavitaire pour entrainement électrosystolique",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MHC000070",
+    "nom": "Pose d'un cathéter veineux pour hémodialyse",
+    "specialite": "NEPHROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFF010140",
+    "nom": "Pose d'un micro-cathéter endo-cavitaire pour prise de pression dans les cavités",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MHF000020",
+    "nom": "Pose de sonde vésicale à demeure",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MJB010040",
+    "nom": "Pose ou retrait d'un dispositif intra-utérin",
+    "specialite": "GYNECO",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MCB010270",
+    "nom": "Posturographie statique et dynamique sur plate-forme multitest,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  },
+  {
+    "code": "MCB010240",
+    "nom": "Potentiels évoqués cognitifs (endogènes):  Onde P300,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCB010230",
+    "nom": "Potentiels évoqués cognitifs (endogènes):  Variation contingente négative,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCB010250",
+    "nom": "Potentiels évoqués cognitifs (endogènes): Potentiel de préparation motrice,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCB010190",
+    "nom": "Potentiels évoqués: Auditifs du tronc cérébral avec anesthésie",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCB010180",
+    "nom": "Potentiels évoqués: Auditifs du tronc cérébral,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010150",
+    "nom": "Potentiels évoqués: Moteurs (par stimulation magnétique),",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010200",
+    "nom": "Potentiels évoqués: Myogéniques (vestibulaires),",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010160",
+    "nom": "Potentiels évoqués: Somesthésiques étagés,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCB010170",
+    "nom": "Potentiels évoqués: Visuels,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MJB010010",
+    "nom": "Prélèvement gynécologique à différents niveaux quel qu'en soit le nombre",
+    "specialite": "GYNECO",
+    "montantGlobal": 9,
+    "partCnam": 7.2,
+    "partPatient": 1.8,
+    "favori": false
+  },
+  {
+    "code": "MCC040250",
+    "nom": "Prélèvement superficiel de la cornée pour frottis ou culture",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD010130",
+    "nom": "Pression d'occlusion, PIMAX, PEMAX",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MFD010140",
+    "nom": "Pression transdiaphragmatique",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MAF010220",
+    "nom": "Réalisation d'une botte de Unna (acte isolé)",
+    "specialite": "ANGEOLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MAF010230",
+    "nom": "Réalisation d'une botte de Unna et pansement d'un ulcère de jambe (détersion, épluchage, régularisation de la lésion) avec un maximum de 2 par semaine",
+    "specialite": "ANGEOLOGIE",
+    "montantGlobal": 18,
+    "partCnam": 14.4,
+    "partPatient": 3.6,
+    "favori": false
+  },
+  {
+    "code": "MCB010140",
+    "nom": "Recherche d'un bloc de la conduction neuro-musculaire (myasténie avec épreuve de stimulation répétitive),",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MGG000040",
+    "nom": "Rectoscopie ou rectosigmoïdoscopie avec biopsie",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 75,
+    "partCnam": 60,
+    "partPatient": 15,
+    "favori": false
+  },
+  {
+    "code": "MGG000030",
+    "nom": "Rectoscopie ou rectosigmoïdoscopie simple",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MCE010050",
+    "nom": "Réduction d'une fracture récente du nez avec ou sans appareillage",
+    "specialite": "ORL",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MKC010030",
+    "nom": "Rééduction fonctionnelle de membres sans lésion neurologique : Un membre supérieur ou inférieur avec la ceinture correspondante, main complexe",
+    "specialite": "ORTHOPEDIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCB010300",
+    "nom": "Réflexe H.",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MCC010290",
+    "nom": "Rétinographie (avec maximum de deux épreuves par an)",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD010160",
+    "nom": "Rhinomanométrie",
+    "specialite": "ORL",
+    "montantGlobal": 75,
+    "partCnam": 60,
+    "partPatient": 15,
+    "favori": false
+  },
+  {
+    "code": "MCC010330",
+    "nom": "Scaning laser ophtalmoscopie",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFF010230",
+    "nom": "Séance de réhabilitation des cardiaques en milieu spécialisé par séance en group",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD010010",
+    "nom": "Spirographie complète avec mesure du volume résiduel et du volume de fermeture",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MFD010020",
+    "nom": "Spirographie complète sans mesure du volume résiduel",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFD010150",
+    "nom": "Stimulation magnétique du diaphragme",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MDC000050",
+    "nom": "Supplément pour biopsie(s) éventuelle(s)",
+    "specialite": "ORL",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MFF010080",
+    "nom": "Supplément pour épreuves pharmaco-dynamiques au cours d'un enregistr.d'un phonomécanogr. avec une dérivation ECG,l'enregistr. d'au 5 foyers, + coubes",
+    "specialite": "CARDIOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MHC000020",
+    "nom": "Surveillance d'une séance d'hémodialyse pour insuffisance rénale aiguë",
+    "specialite": "NEPHROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MAD030030",
+    "nom": "Synoviorthèse de toute articulation",
+    "specialite": "ORTHOPEDIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MFD010090",
+    "nom": "Test de marche de 6 minutes",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MFD010060",
+    "nom": "Test de provocation bronchique non spécifique à la métacholine",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MFD010070",
+    "nom": "Test de provocation bronchique par l'exercice en respirant l'air sec avec oxymetrie de pouls",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MFD010170",
+    "nom": "Test de provocation nasale par allergènes spécifiques",
+    "specialite": "ALERGOLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MFD010050",
+    "nom": "Tests de bronchodilatation ou de reversibilité",
+    "specialite": "PNEUMO-PHTISIOLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MCC010340",
+    "nom": "Tomographie en cohérence optique",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MCC010180",
+    "nom": "Tonographie au tonomètre électronique",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 39,
+    "partCnam": 31.2,
+    "partPatient": 7.8,
+    "favori": false
+  },
+  {
+    "code": "MCC090110",
+    "nom": "Trabéculoplastie ou trabéculorètraction au laser",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MGC000230",
+    "nom": "Traitement d'une perforation d'ulcère gastro-duodénal par aspiration continue, par jour, maximum 03 jours",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MGD000150",
+    "nom": "Traitement de l'invagination intestinale par lavement baryté (sous contrôle radiographique, toute surveillance comprise, avec clichés)",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MGG000370",
+    "nom": "Traitement de la fissure anale par injections sclérosantes (maximum trois séance) , par séance",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 15,
+    "partCnam": 12,
+    "partPatient": 3,
+    "favori": false
+  },
+  {
+    "code": "MCE010040",
+    "nom": "Traitement de la rhinite atrophique uni ou bilatérale par injection de substance",
+    "specialite": "ORL",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MBB020180",
+    "nom": "Traitement dermatologique par cryothérapie, injections sclérosantes",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MBB020190",
+    "nom": "Traitement dermatologique par Electrolyse ou électrocoagulation par séance",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MBB020200",
+    "nom": "Traitement dermatologique par Infiltration intra-tissulaire unique ou multiple",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCD030050",
+    "nom": "Traitement des otites chroniques par aspiration sous microscope : La séance",
+    "specialite": "ORL",
+    "montantGlobal": 30,
+    "partCnam": 24,
+    "partPatient": 6,
+    "favori": false
+  },
+  {
+    "code": "MCC090050",
+    "nom": "Traitement du glaucome chronique à angle ouvert par photocoagulation ou photodiscruption en 1 ou 2 séances, pour une période de six mois, par séance",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MCC090060",
+    "nom": "Traitement du glaucome par ultra-sons",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 150,
+    "partCnam": 120,
+    "partPatient": 30,
+    "favori": false
+  },
+  {
+    "code": "MCC040170",
+    "nom": "Traitement du tatouage de la cornée, quel que soit le nombre de séances",
+    "specialite": "OPHTALMOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MBB020430",
+    "nom": "Traitement exfoliant de l'épiderme par application de substances lépismatiques(acide salicyclique, acide phénique, naphtol B, résorcine)",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 45,
+    "partCnam": 36,
+    "partPatient": 9,
+    "favori": false
+  },
+  {
+    "code": "MCE020040",
+    "nom": "Traitement par drainage permanent et instillations par voie endo-nasale d'une sinusite maxillaire",
+    "specialite": "ORL",
+    "montantGlobal": 90,
+    "partCnam": 72,
+    "partPatient": 18,
+    "favori": false
+  },
+  {
+    "code": "MGC000210",
+    "nom": "Transit du grêle par intubation",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MDC000120",
+    "nom": "Tubage du larynx pour obstruction laryngée",
+    "specialite": "ORL",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MGC000150",
+    "nom": "Tubages gastriques et duodénaux pour étude biologique",
+    "specialite": "GASTRO-ENTEROLOGIE",
+    "montantGlobal": 60,
+    "partCnam": 48,
+    "partPatient": 12,
+    "favori": false
+  },
+  {
+    "code": "MBB020390",
+    "nom": "Ultraviolets pour affection dermatologique : par séance",
+    "specialite": "DERMATOLOGIE",
+    "montantGlobal": 9,
+    "partCnam": 7.2,
+    "partPatient": 1.8,
+    "favori": false
+  },
+  {
+    "code": "MHB000150",
+    "nom": "Urétéroscopie : Diagnostique",
+    "specialite": "UROLOGIE",
+    "montantGlobal": 120,
+    "partCnam": 96,
+    "partPatient": 24,
+    "favori": false
+  },
+  {
+    "code": "MCB010290",
+    "nom": "Videonystagmographie,",
+    "specialite": "NEUROLOGIE",
+    "montantGlobal": 135,
+    "partCnam": 108,
+    "partPatient": 27,
+    "favori": false
+  }
+]
