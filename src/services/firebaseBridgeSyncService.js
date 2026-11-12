@@ -324,7 +324,7 @@ export async function firebaseFetch(path, options = {}) {
           }
         });
       } catch (fallbackErr) {
-        throw new Error(`Connexion impossible au pont (${netErr.message}). Vérifiez que votre PC est allumé avec DocPocket Cabinet.`);
+        throw new Error(`Connexion impossible au pont (${netErr.message}). Vérifiez que votre PC est allumé avec DocPocket Cab.`);
       }
     } else {
       throw new Error(`Connexion impossible au pont (${netErr.message}). Vérifiez votre connexion Internet et le serveur.`);
@@ -1100,7 +1100,7 @@ async function handleIncomingSignal(signal) {
 
       const doctorProfile = JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}');
       const payload = {
-        app: 'DocPocket Cabinet',
+        app: 'DocPocket Cab',
         schemaVersion: 6,
         exportedAt: new Date().toISOString(),
         stats: {

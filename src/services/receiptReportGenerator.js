@@ -407,7 +407,7 @@ export function generateReceiptReport(patient, invoice) {
               Quittance d'honoraires délivrée pour servir et valoir ce que de droit.
             </p>
             <p style="margin: 3px 0 0 0; color: #94a3b8;">
-              Logiciel DocPocket Cabinet — Conforme réglementation CNAM Tunisie.
+              Logiciel DocPocket Cab — Conforme réglementation CNAM Tunisie.
             </p>
           </div>
 

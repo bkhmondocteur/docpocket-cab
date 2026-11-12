@@ -297,8 +297,8 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
     }
 
     const confirmMsg = restoreMode === 'replace'
-      ? `⚠️ ATTENTION : Vous avez choisi le mode 'Remplacement complet'.\nToutes les données actuelles de DocPocket Cabinet seront réinitialisées et remplacées par le contenu de ${selectedFile.name}.\n\nSouhaitez-vous continuer ?`
-      : `Voulez-vous importer et fusionner les données du fichier ${selectedFile.name} dans DocPocket Cabinet ?`;
+      ? `⚠️ ATTENTION : Vous avez choisi le mode 'Remplacement complet'.\nToutes les données actuelles de DocPocket Cab seront réinitialisées et remplacées par le contenu de ${selectedFile.name}.\n\nSouhaitez-vous continuer ?`
+      : `Voulez-vous importer et fusionner les données du fichier ${selectedFile.name} dans DocPocket Cab ?`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -327,7 +327,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
         });
         setRestoreResult({
           type: 'docpocket',
-          message: `✓ Restauration DocPocket Cabinet réussie !`,
+          message: `✓ Restauration DocPocket Cab réussie !`,
           details: `${result.patients} patients, ${result.consultations} consultations, ${result.invoices} factures.`
         });
       }
@@ -431,7 +431,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
 
       const docProf = JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}');
       const backupPayload = {
-        app: 'DocPocket Cabinet',
+        app: 'DocPocket Cab',
         schemaVersion: 6,
         exportedAt: new Date().toISOString(),
         stats: {
@@ -637,7 +637,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
         </div>
 
         <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-          DocPocket Cabinet • Sécurité Locale
+          DocPocket Cab • Sécurité Locale
         </div>
       </div>
 
@@ -1172,7 +1172,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                     Synchronisation Cloud Automatique
                   </h3>
                   <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '2px' }}>
-                    Authentification sécurisée par Compte Google • DocPocket Cabinet gère l'infrastructure Cloud automatiquement
+                    Authentification sécurisée par Compte Google • DocPocket Cab gère l'infrastructure Cloud automatiquement
                   </div>
                 </div>
               </div>
@@ -1756,7 +1756,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
             <button
               type="button"
               onClick={() => {
-                if (window.confirm("Voulez-vous verrouiller DocPocket Cabinet ? L'écran de demande de clé sera affiché.")) {
+                if (window.confirm("Voulez-vous verrouiller DocPocket Cab ? L'écran de demande de clé sera affiché.")) {
                   revokeLicense();
                   window.location.reload();
                 }

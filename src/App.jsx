@@ -1027,7 +1027,7 @@ export default function App() {
               Bienvenue Dr. {formatDoctorWelcomeName(doctorName)}
             </div>
             <div style={{ fontSize: '0.78rem', color: '#e0f2fe' }}>
-              Votre Cabinet Médical DocPocket Cabinet est prêt.
+              Votre Cabinet Médical DocPocket Cab est prêt.
             </div>
           </div>
           <button

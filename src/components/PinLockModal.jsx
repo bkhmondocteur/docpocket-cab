@@ -83,7 +83,7 @@ export default function PinLockModal({ onUnlocked, onRequireLicense }) {
         </div>
 
         <h1 style={{ margin: '0 0 6px 0', fontSize: '1.45rem', color: '#f8fafc', fontWeight: 700 }}>
-          DocPocket Cabinet
+          DocPocket Cab
         </h1>
         <div style={{
           display: 'inline-block',

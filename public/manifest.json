@@ -1,8 +1,8 @@
 {
-  "name": "DocPocket Cabinet - Suite Médicale PWA",
+  "name": "DocPocket Cab",
   "short_name": "DocPocket Cab",
-  "description": "Application Médicale PWA pour Cabinet Médical",
-  "id": "docpocket-cabinet-app",
+  "description": "Application Médicale DocPocket Cab",
+  "id": "docpocket-cab-app",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

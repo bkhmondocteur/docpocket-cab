@@ -673,7 +673,7 @@ export default function BillingView({ initialPatient = null, initialConsultation
 
         {!isMobile && (
           <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            DocPocket Cabinet • Facturation
+            DocPocket Cab • Facturation
           </div>
         )}
       </div>

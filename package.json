@@ -1,11 +1,28 @@
 {
-  "name": "docpocket-cabinet",
-  "description": "Application moderne de gestion de cabinet médical DocPocket Cabinet",
+  "name": "docpocket-cab",
+  "productName": "DocPocket Cab",
+  "description": "Application médicale DocPocket Cab",
   "author": "DocPocket Cab",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "main": "electron/main.js",
+  "build": {
+    "appId": "com.docpocket.cab",
+    "productName": "DocPocket Cab",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "DocPocket Cab Setup ${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "DocPocket Cab"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

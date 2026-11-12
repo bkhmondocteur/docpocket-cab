@@ -1,5 +1,5 @@
 // ==============================================================
-// DOCPOCKET CABINET - GESTION DU SYSTÈME DE LICENCE & KEYGEN PRO
+// DOCPOCKET CAB - GESTION DU SYSTÈME DE LICENCE & KEYGEN PRO
 // ==============================================================
 
 const STORAGE_KEY = 'docpocket_cabinet_license';

@@ -13,9 +13,9 @@ import {
 import { writeBackupFileToFolder } from './backupFolderService';
 
 /**
- * Service de Sauvegarde & Restauration Universel pour DocPocket Cabinet
+ * Service de Sauvegarde & Restauration Universel pour DocPocket Cab
  * Compatible :
- * 1. Sauvegardes natives DocPocket Cabinet (.json)
+ * 1. Sauvegardes natives DocPocket Cab (.json)
  * 2. Sauvegardes d'archives SQL de l'ancien cabinet (Archives .zip SMED6__*.zip avec décompression pure JS hors-ligne)
  */
 
@@ -153,7 +153,7 @@ export function parseSqlDump(sqlContent) {
 }
 
 // ==============================================================
-// 3. SAUVEGARDE NATIVE DOCPOCKET CABINET (.JSON)
+// 3. SAUVEGARDE NATIVE DOCPOCKET CAB (.JSON)
 // ==============================================================
 export async function exportDocPocketBackup() {
   const [patients, consultations, prescriptions, invoices, bordereaux] = await Promise.all([
@@ -171,7 +171,7 @@ export async function exportDocPocketBackup() {
   const filename = `DocPocketCab_Sauvegarde_${dateStr.slice(0, 10)}_${now.getHours()}h${String(now.getMinutes()).padStart(2, '0')}.json`;
 
   const backupData = {
-    app: 'DocPocket Cabinet',
+    app: 'DocPocket Cab',
     schemaVersion: 6,
     exportedAt: now.toISOString(),
     stats: {
@@ -210,7 +210,7 @@ export async function exportDocPocketBackup() {
 // ==============================================================
 export async function restoreDocPocketBackup(jsonObj, mode = 'merge', onProgress = () => {}) {
   if (!jsonObj || !jsonObj.data) {
-    throw new Error("Format de fichier de sauvegarde DocPocket Cabinet invalide.");
+    throw new Error("Format de fichier de sauvegarde DocPocket Cab invalide.");
   }
 
   const { patients = [], consultations = [], prescriptions = [], invoices = [], bordereaux = [] } = jsonObj.data;

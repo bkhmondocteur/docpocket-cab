@@ -134,7 +134,7 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
     const dateStr = now.toISOString().slice(0, 10);
 
     const backupPayload = {
-      app: 'DocPocket Cabinet',
+      app: 'DocPocket Cab',
       schemaVersion: 6,
       backupType: 'auto_backup',
       triggerReason: reason,

@@ -1,4 +1,4 @@
-# 📘 GUIDE COMMERCIAL & ARCHITECTURE FIREBASE - DOCPOCKET CABINET
+# 📘 GUIDE COMMERCIAL & ARCHITECTURE FIREBASE - DOCPOCKET CAB
 > **Destiné au Concepteur / Vendeur de l'Application Médicale**  
 > *Dernière mise à jour : 2026*
 

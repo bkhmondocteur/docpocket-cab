@@ -992,9 +992,16 @@
 
                         <div class="form-row" style="margin-top: 14px;">
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label for="clientTelephone">N° Téléphone Cabinet :</label>
-                                <input type="tel" id="clientTelephone" placeholder="Ex: 73 000 000 / 98 000 000">
+                                <label for="clientTelephone">N° Téléphone Fixe Cabinet :</label>
+                                <input type="tel" id="clientTelephone" placeholder="Ex: 73 200 000">
                             </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="clientPortable">📱 Numéro Portable :</label>
+                                <input type="tel" id="clientPortable" placeholder="Ex: 98 000 000 / 22 000 000">
+                            </div>
+                        </div>
+
+                        <div class="form-row" style="margin-top: 14px; grid-template-columns: 1fr;">
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label for="clientEmail">Adresse Email Google (optionnelle) :</label>
                                 <input type="email" id="clientEmail" placeholder="Ex: docteur@gmail.com">
@@ -1511,6 +1518,7 @@
                             specialite: item.specialite || existing.specialite || 'Médecine Générale',
                             ville: item.ville || existing.ville || '',
                             telephone: item.telephone || existing.telephone || '',
+                            portable: item.portable || existing.portable || '',
                             email: item.email || existing.email || '',
                             cnamId: item.cnamId || existing.cnamId || '',
                             maxDevices: item.maxDevices || existing.maxDevices || 3,
@@ -1530,6 +1538,7 @@
                             specialite: item.specialite || 'Médecine Générale',
                             ville: item.ville || '',
                             telephone: item.telephone || '',
+                            portable: item.portable || '',
                             email: item.email || '',
                             cnamId: item.cnamId || '',
                             key: cleanKey,
@@ -1588,6 +1597,7 @@
                     specialite: doc.specialite || 'Médecine Générale',
                     ville: doc.ville || '',
                     telephone: doc.telephone || '',
+                    portable: doc.portable || '',
                     email: doc.email || '',
                     ordreId: doc.ordreId || '',
                     maxDevices: doc.maxDevices || 3,
@@ -1945,6 +1955,7 @@
             const specialite = (document.getElementById('clientSpecialite')?.value || '').trim() || 'Médecine Générale';
             const ville = (document.getElementById('clientVille')?.value || '').trim();
             const telephone = (document.getElementById('clientTelephone')?.value || '').trim();
+            const portable = (document.getElementById('clientPortable')?.value || '').trim();
             const email = (document.getElementById('clientEmail')?.value || '').trim();
 
             // Calcul de la signature unique du médecin basée sur Nom + Prénom + N° Ordre
@@ -1965,6 +1976,7 @@
                 specialite: specialite,
                 ville: ville,
                 telephone: telephone,
+                portable: portable,
                 email: email,
                 key: key,
                 maxDevices: currentDevices,
@@ -2060,6 +2072,7 @@
                     (d.specialite && d.specialite.toLowerCase().includes(searchQuery)) ||
                     (d.ville && d.ville.toLowerCase().includes(searchQuery)) ||
                     (d.telephone && d.telephone.toLowerCase().includes(searchQuery)) ||
+                    (d.portable && d.portable.toLowerCase().includes(searchQuery)) ||
                     (d.email && d.email.toLowerCase().includes(searchQuery)) ||
                     (d.key && d.key.toLowerCase().includes(searchQuery))
                 );
@@ -2118,7 +2131,10 @@
                     ? `<span style="font-size: 0.75rem; background: rgba(250, 204, 21, 0.12); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.25); padding: 2px 8px; border-radius: 6px;">📍 ${escapeHtml(doc.ville)}</span>`
                     : '';
                 const telBadge = doc.telephone
-                    ? `<span style="font-size: 0.75rem; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;">📞 <strong style="color: #f1f5f9;">${escapeHtml(doc.telephone)}</strong></span>`
+                    ? `<span style="font-size: 0.75rem; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;">☎️ Fixe : <strong style="color: #f1f5f9;">${escapeHtml(doc.telephone)}</strong></span>`
+                    : '';
+                const portableBadge = doc.portable
+                    ? `<span style="font-size: 0.75rem; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;">📱 Portable : <strong style="color: #38bdf8;">${escapeHtml(doc.portable)}</strong></span>`
                     : '';
 
                 // Dernier signal cloud
@@ -2141,6 +2157,7 @@
                                         ${specBadge}
                                         ${villeBadge}
                                         ${telBadge}
+                                        ${portableBadge}
                                         ${doc.email ? `<span class="doc-email">${escapeHtml(doc.email)}</span>` : ''}
                                     </div>
                                 </div>
