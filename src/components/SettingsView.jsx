@@ -75,7 +75,8 @@ import {
 import {
   getPrescriptionSettings,
   savePrescriptionSettings,
-  resetPrescriptionSettings
+  resetPrescriptionSettings,
+  compressTemplateImage
 } from '../services/prescriptionSettingsService';
 import {
   buildPrescriptionHtml,
@@ -107,6 +108,8 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
   const [prescSettings, setPrescSettings] = useState(() => getPrescriptionSettings());
   const [prescSaveMsg, setPrescSaveMsg] = useState('');
   const [previewPrescFormat, setPreviewPrescFormat] = useState(() => getPrescriptionSettings().defaultFormat || 'normale');
+  const [uploadingTemplate, setUploadingTemplate] = useState(false);
+  const templateFileInputRef = React.useRef(null);
 
   useEffect(() => {
     if (activeTab === 'prescription') {
@@ -119,11 +122,9 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
     prenom: 'Mohamed',
     gender: 'M',
     civility: 'M.',
-    birthdate: '15/04/1982',
-    telephone: '98 123 456',
-    cin: '08543210',
-    cnamid: '123456789012',
-    caisse: 'CNSS'
+    age: 42,
+    caisse: 'CNSS',
+    cnamid: '123456789012'
   };
 
   const samplePreviewPrescription = {
@@ -173,6 +174,44 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
         setPrescSaveMsg('✓ Paramètres d’ordonnance réinitialisés aux valeurs par défaut.');
         setTimeout(() => setPrescSaveMsg(''), 4000);
       }
+    }
+  };
+
+  const handleTemplateUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingTemplate(true);
+      const dataUrl = await compressTemplateImage(file, 1200, 0.75);
+      const updated = {
+        ...prescSettings,
+        templateImage: dataUrl,
+        hideHeader: true, // Papier pré-imprimé activé automatiquement
+        pageSize: 'A5',   // Calibré sur A5 par défaut
+        showTemplateInPreview: true
+      };
+      setPrescSettings(updated);
+      savePrescriptionSettings(updated);
+      setPrescSaveMsg("✓ Modèle d'ordonnance A5 importé avec succès ! Superposition active pour calibration.");
+      setTimeout(() => setPrescSaveMsg(''), 4500);
+    } catch (err) {
+      alert("Erreur lors de l'importation de l'image : " + err.message);
+    } finally {
+      setUploadingTemplate(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemoveTemplate = () => {
+    if (window.confirm("Voulez-vous supprimer le modèle scanné de votre ordonnance ?")) {
+      const updated = {
+        ...prescSettings,
+        templateImage: null
+      };
+      setPrescSettings(updated);
+      savePrescriptionSettings(updated);
+      setPrescSaveMsg("✓ Modèle scanné retiré.");
+      setTimeout(() => setPrescSaveMsg(''), 3000);
     }
   };
 
@@ -2903,86 +2942,219 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
             {/* Colonne Réglages */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-              {/* 1. Coordonnées et En-tête Actif */}
-              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
+              {/* 0. Modèle Papier Scanné pour Calibration */}
+              <div style={{
+                background: prescSettings.templateImage ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, #1e293b 100%)' : '#1e293b',
+                border: prescSettings.templateImage ? '1.5px solid #0284c7' : '1px solid #334155',
+                borderRadius: '12px',
+                padding: '16px'
+              }}>
+                <input
+                  type="file"
+                  ref={templateFileInputRef}
+                  onChange={handleTemplateUpload}
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <h4 style={{ margin: 0, color: '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>🩺</span> Coordonnées du Praticien en En-tête
+                    <span>📸</span> Modèle Papier du Médecin (A5 / A4)
                   </h4>
+                  {prescSettings.templateImage && (
+                    <span style={{ fontSize: '0.72rem', background: 'rgba(34, 197, 94, 0.2)', color: '#4ade80', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(34, 197, 94, 0.4)', fontWeight: 600 }}>
+                      ✓ Modèle chargé
+                    </span>
+                  )}
+                </div>
+
+                <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.45 }}>
+                  Photographiez ou scannez une feuille vierge de votre carnet d'ordonnances papier. 
+                  DocPocket Cab l'affiche en arrière-plan transparent pour <strong>calibrer vos marges au millimètre près</strong>.
+                </p>
+
+                {!prescSettings.templateImage ? (
                   <button
                     type="button"
-                    onClick={() => setActiveTab('practitioners')}
+                    disabled={uploadingTemplate}
+                    onClick={() => templateFileInputRef.current?.click()}
                     style={{
-                      padding: '4px 10px',
-                      borderRadius: '6px',
+                      width: '100%',
+                      padding: '11px',
+                      borderRadius: '8px',
                       background: 'rgba(56, 189, 248, 0.15)',
-                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      border: '1.5px dashed #38bdf8',
                       color: '#38bdf8',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
                     }}
                   >
-                    ✏️ Modifier dans Praticiens
+                    <span>📤</span>
+                    <span>{uploadingTemplate ? 'Traitement de l’image...' : 'Uploader mon ordonnance papier (Photo ou Scan)'}</span>
                   </button>
-                </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#cbd5e1', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={prescSettings.showTemplateInPreview !== false}
+                          onChange={(e) => setPrescSettings({ ...prescSettings, showTemplateInPreview: e.target.checked })}
+                        />
+                        <span>Afficher le papier scanné dans l'aperçu</span>
+                      </label>
 
-                <div style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.6 }}>
-                  <div><strong>Nom :</strong> {formatDoctorDisplayName(activePractitioner)}</div>
-                  <div><strong>Spécialité :</strong> {activePractitioner?.specialite || 'Médecine Générale'}</div>
-                  <div><strong>Adresse :</strong> {[activePractitioner?.adresse, activePractitioner?.ville].filter(Boolean).join(', ') || 'Complexe Médical Dar Attabib, Mahdia'}</div>
-                  <div><strong>Téléphone :</strong> {activePractitioner?.telephone || 'Non renseigné'}</div>
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '4px', flexWrap: 'wrap', fontSize: '0.75rem', color: '#94a3b8' }}>
-                    <span>N° Ordre : <strong>{activePractitioner?.ordreId || '12052'}</strong></span>
-                    <span>Code CNAM : <strong>{activePractitioner?.cnamId || '010002763183'}</strong></span>
-                    <span>Fiscal : <strong>{activePractitioner?.fiscId || '856103/M'}</strong></span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => templateFileInputRef.current?.click()}
+                          style={{ padding: '4px 8px', borderRadius: '4px', background: '#334155', border: 'none', color: '#fff', fontSize: '0.72rem', cursor: 'pointer' }}
+                        >
+                          🔄 Remplacer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveTemplate}
+                          style={{ padding: '4px 8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', fontSize: '0.72rem', cursor: 'pointer' }}
+                        >
+                          🗑️ Retirer
+                        </button>
+                      </div>
+                    </div>
+
+                    {prescSettings.showTemplateInPreview !== false && (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '3px' }}>
+                          <span>Transparence du modèle :</span>
+                          <span style={{ color: '#38bdf8', fontWeight: 700 }}>{Math.round((prescSettings.templateOpacity ?? 0.5) * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={15}
+                          max={90}
+                          step={5}
+                          value={Math.round((prescSettings.templateOpacity ?? 0.5) * 100)}
+                          onChange={(e) => setPrescSettings({ ...prescSettings, templateOpacity: Number(e.target.value) / 100 })}
+                          style={{ width: '100%', accentColor: '#0284c7' }}
+                        />
+                      </div>
+                    )}
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#94a3b8', cursor: 'pointer', marginTop: '2px' }}>
+                      <input
+                        type="checkbox"
+                        checked={prescSettings.printTemplateBackground || false}
+                        onChange={(e) => setPrescSettings({ ...prescSettings, printTemplateBackground: e.target.checked })}
+                      />
+                      <span>Imprimer aussi le fond (utile uniquement pour tester sur feuille blanche vierge)</span>
+                    </label>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* 2. Format Papier & Dimensions */}
+              {/* 1. Format Papier & Dimensions Réelles */}
               <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px' }}>
                 <h4 style={{ margin: '0 0 12px', color: '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📐</span> Format Papier & Dimensions
+                  <span>📐</span> Format Papier & Adaptation Totale
                 </h4>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
                   <button
                     type="button"
-                    onClick={() => setPrescSettings({ ...prescSettings, pageSize: 'A4' })}
+                    onClick={() => setPrescSettings({ ...prescSettings, pageSize: 'A5', sideMargin: 8, bottomMargin: 10 })}
+                    style={{
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: prescSettings.pageSize === 'A5' ? '2px solid #0284c7' : '1px solid #334155',
+                      background: prescSettings.pageSize === 'A5' ? 'rgba(2, 132, 199, 0.25)' : '#0f172a',
+                      color: prescSettings.pageSize === 'A5' ? '#fff' : '#94a3b8',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: prescSettings.pageSize === 'A5' ? '#38bdf8' : '#cbd5e1' }}>📑 Format A5 (Recommandé)</div>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>148 × 210 mm • Carnet ordonnance</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPrescSettings({ ...prescSettings, pageSize: 'A4', sideMargin: 14, bottomMargin: 16 })}
                     style={{
                       padding: '12px',
                       borderRadius: '8px',
                       border: prescSettings.pageSize === 'A4' ? '2px solid #0284c7' : '1px solid #334155',
-                      background: prescSettings.pageSize === 'A4' ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
+                      background: prescSettings.pageSize === 'A4' ? 'rgba(2, 132, 199, 0.25)' : '#0f172a',
                       color: prescSettings.pageSize === 'A4' ? '#fff' : '#94a3b8',
                       cursor: 'pointer',
                       textAlign: 'left'
                     }}
                   >
                     <div style={{ fontWeight: 700, fontSize: '0.9rem', color: prescSettings.pageSize === 'A4' ? '#38bdf8' : '#cbd5e1' }}>📄 Format A4</div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>210 × 297 mm • Standard</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPrescSettings({ ...prescSettings, pageSize: 'A5' })}
-                    style={{
-                      padding: '12px',
-                      borderRadius: '8px',
-                      border: prescSettings.pageSize === 'A5' ? '2px solid #0284c7' : '1px solid #334155',
-                      background: prescSettings.pageSize === 'A5' ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
-                      color: prescSettings.pageSize === 'A5' ? '#fff' : '#94a3b8',
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: prescSettings.pageSize === 'A5' ? '#38bdf8' : '#cbd5e1' }}>📑 Format A5</div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>148 × 210 mm • Carnet de poche</div>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>210 × 297 mm • Pleine page</div>
                   </button>
                 </div>
 
-                <div>
+                {/* Calibration des Marges Précises */}
+                <div style={{ background: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#38bdf8' }}>
+                    🎯 Calibration des Marges d'Impression (en mm) :
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#cbd5e1', marginBottom: '2px' }}>
+                      <span>Marge En-tête Supérieure :</span>
+                      <strong style={{ color: '#f59e0b' }}>{prescSettings.headerTopMargin || 42} mm</strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={15}
+                      max={95}
+                      step={1}
+                      value={prescSettings.headerTopMargin || 42}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, headerTopMargin: Number(e.target.value) })}
+                      style={{ width: '100%', accentColor: '#f59e0b' }}
+                    />
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#cbd5e1', marginBottom: '2px' }}>
+                      <span>Marge Latérale Gauche / Droite :</span>
+                      <strong style={{ color: '#38bdf8' }}>{prescSettings.sideMargin || 8} mm</strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={4}
+                      max={25}
+                      step={1}
+                      value={prescSettings.sideMargin || 8}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, sideMargin: Number(e.target.value) })}
+                      style={{ width: '100%', accentColor: '#0284c7' }}
+                    />
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#cbd5e1', marginBottom: '2px' }}>
+                      <span>Marge Inférieure (Bas de page) :</span>
+                      <strong style={{ color: '#10b981' }}>{prescSettings.bottomMargin || 10} mm</strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={6}
+                      max={35}
+                      step={1}
+                      value={prescSettings.bottomMargin || 10}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, bottomMargin: Number(e.target.value) })}
+                      style={{ width: '100%', accentColor: '#10b981' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '12px' }}>
                   <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Taille de police du texte :</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                     {[
@@ -3012,7 +3184,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                 </div>
               </div>
 
-              {/* 3. Mode Papier Pré-imprimé (Imprimerie) */}
+              {/* 2. Mode Papier Pré-imprimé (Imprimerie) */}
               <div style={{
                 background: prescSettings.hideHeader ? 'rgba(217, 119, 6, 0.08)' : '#1e293b',
                 border: prescSettings.hideHeader ? '1.5px solid #d97706' : '1px solid #334155',
@@ -3025,7 +3197,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                       <span>🖨️</span> Mode Papier Pré-imprimé d'Imprimerie
                     </h4>
                     <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
-                      Masque l'en-tête logiciel pour imprimer sur vos ordonnances pré-imprimées
+                      Masque l'en-tête logiciel et supprime la date du haut (la date s'imprime une seule fois en bas avec la signature)
                     </div>
                   </div>
 
@@ -3058,33 +3230,43 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                     </span>
                   </label>
                 </div>
+              </div>
 
-                {prescSettings.hideHeader && (
-                  <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed rgba(217, 119, 6, 0.3)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label style={{ fontSize: '0.78rem', color: '#fde68a', fontWeight: 600 }}>
-                        Hauteur de la marge supérieure réservée :
-                      </label>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b' }}>
-                        {prescSettings.headerTopMargin || 45} mm
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={20}
-                      max={85}
-                      step={5}
-                      value={prescSettings.headerTopMargin || 45}
-                      onChange={(e) => setPrescSettings({ ...prescSettings, headerTopMargin: Number(e.target.value) })}
-                      style={{ width: '100%', cursor: 'pointer', accentColor: '#d97706' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#94a3b8' }}>
-                      <span>20 mm (Étroit)</span>
-                      <span>45 mm (Standard)</span>
-                      <span>85 mm (Grand en-tête)</span>
-                    </div>
+              {/* 3. Coordonnées et En-tête Actif */}
+              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
+                  <h4 style={{ margin: 0, color: '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>🩺</span> Coordonnées du Praticien (En-tête Logiciel)
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('practitioners')}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      color: '#38bdf8',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✏️ Modifier dans Praticiens
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <div><strong>Nom :</strong> {formatDoctorDisplayName(activePractitioner)}</div>
+                  <div><strong>Spécialité :</strong> {activePractitioner?.specialite || 'Médecine Générale'}</div>
+                  <div><strong>Adresse :</strong> {[activePractitioner?.adresse, activePractitioner?.ville].filter(Boolean).join(', ') || 'Complexe Médical Dar Attabib, Mahdia'}</div>
+                  <div><strong>Téléphone :</strong> {activePractitioner?.telephone || 'Non renseigné'}</div>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '4px', flexWrap: 'wrap', fontSize: '0.75rem', color: '#94a3b8' }}>
+                    <span>N° Ordre : <strong>{activePractitioner?.ordreId || '12052'}</strong></span>
+                    <span>Code CNAM : <strong>{activePractitioner?.cnamId || '010002763183'}</strong></span>
+                    <span>Fiscal : <strong>{activePractitioner?.fiscId || '856103/M'}</strong></span>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* 4. Mentions de Bas de Page & Validité */}
@@ -3345,8 +3527,9 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                 background: '#ffffff',
                 border: '1px solid #cbd5e1',
                 boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                height: prescSettings.pageSize === 'A5' ? '490px' : '630px',
-                transition: 'height 0.3s ease'
+                height: prescSettings.pageSize === 'A5' ? '540px' : '640px',
+                transition: 'all 0.3s ease',
+                position: 'relative'
               }}>
                 <iframe
                   title="Aperçu Ordonnance"
@@ -3360,8 +3543,19 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                 />
               </div>
 
-              <div style={{ fontSize: '0.72rem', color: '#64748b', textAlign: 'center' }}>
-                Rendu conforme au format d'impression papier et export PDF haute résolution.
+              <div style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: 'rgba(56, 189, 248, 0.08)',
+                border: '1px solid rgba(56, 189, 248, 0.2)',
+                fontSize: '0.72rem',
+                color: '#94a3b8',
+                lineHeight: 1.45
+              }}>
+                <div style={{ color: '#38bdf8', fontWeight: 700, marginBottom: '2px' }}>
+                  🛡️ Confidentialité & Déontologie Médicale :
+                </div>
+                Zéro donnée privée (zéro CIN, zéro téléphone, zéro date de naissance) n'apparaît sur l'ordonnance. Seuls figurent l'identité du patient, son âge calculé et ses données CNAM si applicable.
               </div>
             </div>
           </div>
