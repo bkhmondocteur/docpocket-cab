@@ -34,6 +34,7 @@ import UnsettledConsultationModal from './components/UnsettledConsultationModal'
 import LicenseLockModal from './components/LicenseLockModal';
 import PinLockModal from './components/PinLockModal';
 import PractitionerSwitchModal from './components/PractitionerSwitchModal';
+import appLogo from './assets/logo.jpg';
 import { initTheme, getCurrentThemeId } from './services/themeService';
 import {
   getActivePractitioner,
@@ -1089,7 +1090,7 @@ export default function App() {
             <div style={{ padding: '20px 18px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <img
-                  src="/logo.jpg"
+                  src={appLogo}
                   alt="DocPocket Cab Logo"
                   style={{
                     width: '46px',
@@ -1204,7 +1205,7 @@ export default function App() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <img
-                    src="/logo.jpg"
+                    src={appLogo}
                     alt="Logo"
                     style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover' }}
                   />
@@ -1327,7 +1328,7 @@ export default function App() {
 
             {isMobile ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <img src="/logo.jpg" alt="Logo" style={{ width: '30px', height: '30px', borderRadius: '7px', objectFit: 'cover' }} />
+                <img src={appLogo} alt="Logo" style={{ width: '30px', height: '30px', borderRadius: '7px', objectFit: 'cover' }} />
                 <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>
                   {activeTab === 'patients' && 'Patients'}
                   {activeTab === 'waiting' && 'Salle d\'Attente'}
