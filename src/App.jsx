@@ -279,6 +279,47 @@ export default function App() {
 
   const [currentAppTheme, setCurrentAppTheme] = useState(() => getCurrentThemeId());
 
+  // Support officiel de l'installation PWA Google Chrome & Navigateurs Mobiles
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
+
+  useEffect(() => {
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+      setIsAppInstalled(true);
+    }
+
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setIsAppInstalled(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsAppInstalled(true);
+        setDeferredPrompt(null);
+      }
+    } else {
+      alert("Installation de DocPocket Cab sur Google Chrome :\n\n1. Appuyez sur le menu (⋮) en haut à droite du navigateur Chrome.\n2. Cliquez sur 'Installer l'application' (ou 'Ajouter à l'écran d'accueil').\n3. L'application apparaîtra directement sur votre écran d'accueil avec son icône médicale dédiée !");
+    }
+  };
+
   useEffect(() => {
     initTheme();
     const handleThemeChange = (e) => {
@@ -1398,6 +1439,33 @@ export default function App() {
               <span>🎨</span>
               {!isMobile && <span>Thèmes</span>}
             </button>
+
+            {/* Bouton d'Installation PWA Google Chrome & Écran d'accueil */}
+            {!isAppInstalled && (
+              <button
+                type="button"
+                onClick={handleInstallPWA}
+                title="Installer DocPocket Cab sur votre écran d'accueil (Application PWA)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: isMobile ? '4px' : '6px',
+                  padding: isMobile ? '5px 9px' : '6px 13px',
+                  borderRadius: '20px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  border: '1.5px solid #38bdf8',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: isMobile ? '0.72rem' : '0.8rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(2, 132, 199, 0.45)',
+                  userSelect: 'none'
+                }}
+              >
+                <span>📲</span>
+                <span>Installer</span>
+              </button>
+            )}
 
             {/* Badge Auto-Sauvegarde */}
             <div
