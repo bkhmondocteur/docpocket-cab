@@ -14,6 +14,7 @@ import {
   getAvicennaStats 
 } from '../services/avicennaService';
 import { generatePrescriptionReport } from '../services/prescriptionReportGenerator';
+import { getPrescriptionSettings } from '../services/prescriptionSettingsService';
 import { APCI_LIST } from '../constants/medicalConstants';
 
 export default function PrescriptionView({
@@ -43,7 +44,7 @@ export default function PrescriptionView({
   const [saving, setSaving] = useState(false);
 
   // Format d'impression sélectionné : 'normale' | 'cnam_mo' | 'cnam_apci'
-  const [printFormat, setPrintFormat] = useState('normale');
+  const [printFormat, setPrintFormat] = useState(() => getPrescriptionSettings().defaultFormat || 'normale');
 
   // Champs spécifiques CNAM : Numéro de carnet et choix de l'APCI par le médecin
   const [numCarnet, setNumCarnet] = useState(initialPatient?.cnamid || '');
@@ -1083,6 +1084,25 @@ export default function PrescriptionView({
                     >
                       ★ CNAM APCI
                     </button>
+
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: 'rgba(56, 189, 248, 0.1)',
+                      border: '1px solid rgba(56, 189, 248, 0.25)',
+                      fontSize: '0.75rem',
+                      color: '#38bdf8',
+                      marginLeft: isMobile ? '0' : 'auto'
+                    }}>
+                      <span>📐</span>
+                      <span>{getPrescriptionSettings().pageSize || 'A4'}</span>
+                      {getPrescriptionSettings().hideHeader && (
+                        <span style={{ color: '#fbbf24', fontWeight: 600 }}>• Pré-imprimé</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 

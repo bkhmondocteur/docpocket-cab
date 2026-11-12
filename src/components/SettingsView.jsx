@@ -72,6 +72,15 @@ import {
   getCurrentTheme,
   applyTheme
 } from '../services/themeService';
+import {
+  getPrescriptionSettings,
+  savePrescriptionSettings,
+  resetPrescriptionSettings
+} from '../services/prescriptionSettingsService';
+import {
+  buildPrescriptionHtml,
+  generatePrescriptionReport
+} from '../services/prescriptionReportGenerator';
 import BackupFolderSetupModal from './BackupFolderSetupModal';
 
 export default function SettingsView({ initialTab = 'backup', onDataRestored = () => {} }) {
@@ -93,6 +102,79 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
   // États pour les thèmes visuels (10 thèmes médicaux)
   const [activeThemeId, setActiveThemeId] = useState(() => getCurrentThemeId());
   const [themeSuccessMsg, setThemeSuccessMsg] = useState('');
+
+  // États pour la personnalisation des ordonnances & impression
+  const [prescSettings, setPrescSettings] = useState(() => getPrescriptionSettings());
+  const [prescSaveMsg, setPrescSaveMsg] = useState('');
+  const [previewPrescFormat, setPreviewPrescFormat] = useState(() => getPrescriptionSettings().defaultFormat || 'normale');
+
+  useEffect(() => {
+    if (activeTab === 'prescription') {
+      setPrescSettings(getPrescriptionSettings());
+    }
+  }, [activeTab]);
+
+  const samplePreviewPatient = {
+    nom: 'TRABELSI',
+    prenom: 'Mohamed',
+    gender: 'M',
+    civility: 'M.',
+    birthdate: '15/04/1982',
+    telephone: '98 123 456',
+    cin: '08543210',
+    cnamid: '123456789012',
+    caisse: 'CNSS'
+  };
+
+  const samplePreviewPrescription = {
+    id: 'DEMO',
+    date: new Date().toLocaleDateString('fr-FR'),
+    indication: 'Rhinopharyngite aiguë et bronchite catarrhale',
+    items: [
+      {
+        nom: 'AMOXICILLINE 1G COMPRIMÉ DISPERSIBLE',
+        forme: 'Comprimé',
+        posologie: '1 comprimé matin et soir au milieu des repas pendant 6 jours',
+        duree: '6 jours',
+        quantite: '2 boîtes',
+        consigne: 'Bien respecter la durée même après amélioration',
+        apci: false
+      },
+      {
+        nom: 'PARACÉTAMOL 1000MG GÉLULES',
+        forme: 'Gélule',
+        posologie: '1 gélule toutes les 6 heures en cas de douleur ou fièvre',
+        duree: '5 jours',
+        quantite: '1 boîte',
+        consigne: 'Ne pas dépasser 3 grammes par jour',
+        apci: false
+      }
+    ],
+    notes: 'Boire abondamment de l\'eau, repos vocal recommandé.'
+  };
+
+  const previewPrescriptionHtml = buildPrescriptionHtml(samplePreviewPatient, samplePreviewPrescription, previewPrescFormat, prescSettings);
+
+  const handleSavePrescriptionSettings = () => {
+    const res = savePrescriptionSettings(prescSettings);
+    if (res.success) {
+      setPrescSaveMsg('✓ Paramètres d’ordonnance enregistrés avec succès !');
+      setTimeout(() => setPrescSaveMsg(''), 4000);
+    } else {
+      alert("Erreur lors de l'enregistrement : " + res.error);
+    }
+  };
+
+  const handleResetPrescriptionSettings = () => {
+    if (window.confirm("Rétablir tous les paramètres d'ordonnance aux réglages d'usine par défaut ?")) {
+      const res = resetPrescriptionSettings();
+      if (res.success) {
+        setPrescSettings(res.settings);
+        setPrescSaveMsg('✓ Paramètres d’ordonnance réinitialisés aux valeurs par défaut.');
+        setTimeout(() => setPrescSaveMsg(''), 4000);
+      }
+    }
+  };
 
   const handleSelectTheme = (themeId) => {
     const applied = applyTheme(themeId);
@@ -614,6 +696,25 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
             }}
           >
             <span>🩺</span> Équipe & Praticiens ({practitionersList.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('prescription')}
+            style={{
+              padding: '9px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'prescription' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
+              color: activeTab === 'prescription' ? '#fff' : '#94a3b8',
+              fontWeight: activeTab === 'prescription' ? 700 : 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.85rem'
+            }}
+          >
+            <span>📄</span> Ordonnance & Impression
           </button>
 
           <button
@@ -2703,7 +2804,572 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
       )}
 
       {/* ============================================================== */}
-      {/* ONGLET 5 : THÈMES VISUELS & PERSONNALISATION (10 THÈMES)       */}
+      {/* ONGLET 5 : PERSONNALISATION & IMPRESSION D'ORDONNANCES         */}
+      {/* ============================================================== */}
+      {activeTab === 'prescription' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Bannière de présentation */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%)',
+            border: '1.5px solid #0284c7',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 16px rgba(2, 132, 199, 0.2)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '14px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <span style={{ fontSize: '2rem' }}>📄</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#38bdf8', fontWeight: 800 }}>
+                  Personnalisation & Mise en Page de l'Ordonnance Médicale
+                </h3>
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: '2px' }}>
+                  A4 / A5, mode papier pré-imprimé, mentions légales, formules de bas de page et aperçu en direct
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={handleResetPrescriptionSettings}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                ↺ Rétablir Défaut
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePrescriptionSettings}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
+                }}
+              >
+                <span>💾</span>
+                <span>Enregistrer</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Message de succès lors de l'enregistrement */}
+          {prescSaveMsg && (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid #10b981',
+              borderRadius: '8px',
+              padding: '10px 16px',
+              color: '#34d399',
+              fontSize: '0.88rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span>✓</span>
+              <span>{prescSaveMsg}</span>
+            </div>
+          )}
+
+          {/* Grille : Options à gauche, Aperçu interactif à droite */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+            gap: '20px',
+            alignItems: 'start'
+          }}>
+            {/* Colonne Réglages */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+              {/* 1. Coordonnées et En-tête Actif */}
+              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
+                  <h4 style={{ margin: 0, color: '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>🩺</span> Coordonnées du Praticien en En-tête
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('practitioners')}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      color: '#38bdf8',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✏️ Modifier dans Praticiens
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <div><strong>Nom :</strong> {formatDoctorDisplayName(activePractitioner)}</div>
+                  <div><strong>Spécialité :</strong> {activePractitioner?.specialite || 'Médecine Générale'}</div>
+                  <div><strong>Adresse :</strong> {[activePractitioner?.adresse, activePractitioner?.ville].filter(Boolean).join(', ') || 'Complexe Médical Dar Attabib, Mahdia'}</div>
+                  <div><strong>Téléphone :</strong> {activePractitioner?.telephone || 'Non renseigné'}</div>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '4px', flexWrap: 'wrap', fontSize: '0.75rem', color: '#94a3b8' }}>
+                    <span>N° Ordre : <strong>{activePractitioner?.ordreId || '12052'}</strong></span>
+                    <span>Code CNAM : <strong>{activePractitioner?.cnamId || '010002763183'}</strong></span>
+                    <span>Fiscal : <strong>{activePractitioner?.fiscId || '856103/M'}</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Format Papier & Dimensions */}
+              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px' }}>
+                <h4 style={{ margin: '0 0 12px', color: '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📐</span> Format Papier & Dimensions
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPrescSettings({ ...prescSettings, pageSize: 'A4' })}
+                    style={{
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: prescSettings.pageSize === 'A4' ? '2px solid #0284c7' : '1px solid #334155',
+                      background: prescSettings.pageSize === 'A4' ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
+                      color: prescSettings.pageSize === 'A4' ? '#fff' : '#94a3b8',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: prescSettings.pageSize === 'A4' ? '#38bdf8' : '#cbd5e1' }}>📄 Format A4</div>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>210 × 297 mm • Standard</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPrescSettings({ ...prescSettings, pageSize: 'A5' })}
+                    style={{
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: prescSettings.pageSize === 'A5' ? '2px solid #0284c7' : '1px solid #334155',
+                      background: prescSettings.pageSize === 'A5' ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
+                      color: prescSettings.pageSize === 'A5' ? '#fff' : '#94a3b8',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: prescSettings.pageSize === 'A5' ? '#38bdf8' : '#cbd5e1' }}>📑 Format A5</div>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>148 × 210 mm • Carnet de poche</div>
+                  </button>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Taille de police du texte :</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    {[
+                      { id: 'compact', label: 'Compacte' },
+                      { id: 'normal', label: 'Standard' },
+                      { id: 'large', label: 'Agrandie' }
+                    ].map(f => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setPrescSettings({ ...prescSettings, fontSize: f.id })}
+                        style={{
+                          padding: '7px',
+                          borderRadius: '6px',
+                          border: prescSettings.fontSize === f.id ? '1.5px solid #0284c7' : '1px solid #334155',
+                          background: prescSettings.fontSize === f.id ? 'rgba(2, 132, 199, 0.25)' : '#0f172a',
+                          color: prescSettings.fontSize === f.id ? '#fff' : '#94a3b8',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Mode Papier Pré-imprimé (Imprimerie) */}
+              <div style={{
+                background: prescSettings.hideHeader ? 'rgba(217, 119, 6, 0.08)' : '#1e293b',
+                border: prescSettings.hideHeader ? '1.5px solid #d97706' : '1px solid #334155',
+                borderRadius: '12px',
+                padding: '16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h4 style={{ margin: 0, color: prescSettings.hideHeader ? '#fbbf24' : '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>🖨️</span> Mode Papier Pré-imprimé d'Imprimerie
+                    </h4>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                      Masque l'en-tête logiciel pour imprimer sur vos ordonnances pré-imprimées
+                    </div>
+                  </div>
+
+                  <label style={{ position: 'relative', display: 'inline-block', width: '46px', height: '24px' }}>
+                    <input
+                      type="checkbox"
+                      checked={prescSettings.hideHeader || false}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, hideHeader: e.target.checked })}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute',
+                      cursor: 'pointer',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundColor: prescSettings.hideHeader ? '#d97706' : '#334155',
+                      borderRadius: '24px',
+                      transition: '0.3s'
+                    }}>
+                      <span style={{
+                        position: 'absolute',
+                        content: '""',
+                        height: '18px',
+                        width: '18px',
+                        left: prescSettings.hideHeader ? '24px' : '3px',
+                        bottom: '3px',
+                        backgroundColor: '#fff',
+                        borderRadius: '50%',
+                        transition: '0.3s'
+                      }} />
+                    </span>
+                  </label>
+                </div>
+
+                {prescSettings.hideHeader && (
+                  <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed rgba(217, 119, 6, 0.3)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '0.78rem', color: '#fde68a', fontWeight: 600 }}>
+                        Hauteur de la marge supérieure réservée :
+                      </label>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b' }}>
+                        {prescSettings.headerTopMargin || 45} mm
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={85}
+                      step={5}
+                      value={prescSettings.headerTopMargin || 45}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, headerTopMargin: Number(e.target.value) })}
+                      style={{ width: '100%', cursor: 'pointer', accentColor: '#d97706' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#94a3b8' }}>
+                      <span>20 mm (Étroit)</span>
+                      <span>45 mm (Standard)</span>
+                      <span>85 mm (Grand en-tête)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Mentions de Bas de Page & Validité */}
+              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px' }}>
+                <h4 style={{ margin: '0 0 12px', color: '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>✍️</span> Mentions de Bas de Page & Validité
+                </h4>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                    <input
+                      type="checkbox"
+                      checked={prescSettings.showLineCount !== false}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, showLineCount: e.target.checked })}
+                    />
+                    <span>Afficher « Arrêtée la présente ordonnance à X ligne(s) »</span>
+                  </label>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                      Recommandation ou conseil patient :
+                    </label>
+                    <input
+                      type="text"
+                      value={prescSettings.customFooterNote || ''}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, customFooterNote: e.target.value })}
+                      placeholder="ex: En cas de persistance des symptômes, veuillez reconsulter."
+                      style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.8rem' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', color: '#cbd5e1', marginBottom: '4px' }}>
+                      <input
+                        type="checkbox"
+                        checked={prescSettings.showValidityNote !== false}
+                        onChange={(e) => setPrescSettings({ ...prescSettings, showValidityNote: e.target.checked })}
+                      />
+                      <span>Mention de validité de l'ordonnance :</span>
+                    </label>
+                    {prescSettings.showValidityNote !== false && (
+                      <input
+                        type="text"
+                        value={prescSettings.validityNote || ''}
+                        onChange={(e) => setPrescSettings({ ...prescSettings, validityNote: e.target.value })}
+                        placeholder="ex: Ordonnance valable 3 mois sauf mention contraire."
+                        style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.8rem' }}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Zone Cachet & Signature */}
+              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px' }}>
+                <h4 style={{ margin: '0 0 12px', color: '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🖋️</span> Zone Cachet & Signature
+                </h4>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                    <input
+                      type="checkbox"
+                      checked={prescSettings.showSignatureBox !== false}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, showSignatureBox: e.target.checked })}
+                    />
+                    <span>Afficher l'emplacement réservé au cachet et à la signature</span>
+                  </label>
+
+                  {prescSettings.showSignatureBox !== false && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>Intitulé signature</label>
+                        <input
+                          type="text"
+                          value={prescSettings.signatureTitle || ''}
+                          onChange={(e) => setPrescSettings({ ...prescSettings, signatureTitle: e.target.value })}
+                          placeholder="Cachet & Signature du Médecin"
+                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.78rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>Ville de rédaction (Fait à...)</label>
+                        <input
+                          type="text"
+                          value={prescSettings.cityOverride || ''}
+                          onChange={(e) => setPrescSettings({ ...prescSettings, cityOverride: e.target.value })}
+                          placeholder={activePractitioner?.ville || 'Mahdia'}
+                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.78rem' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 6. Style Visuel & Modèle par Défaut */}
+              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px' }}>
+                <h4 style={{ margin: '0 0 12px', color: '#38bdf8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🎨</span> Modèle par Défaut & Couleur d'Encre
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Modèle d'ordonnance initial</label>
+                    <select
+                      value={prescSettings.defaultFormat || 'normale'}
+                      onChange={(e) => setPrescSettings({ ...prescSettings, defaultFormat: e.target.value })}
+                      style={{ width: '100%', padding: '7px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.8rem' }}
+                    >
+                      <option value="normale">📄 Ordonnance Normale (Standard)</option>
+                      <option value="cnam_mo">🏛️ CNAM MO (Maladie Ordinaire)</option>
+                      <option value="cnam_apci">★ CNAM APCI (100% Tiers-Payant)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Couleur d'accentuation en-tête</label>
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                      {[
+                        { color: '#0284c7', label: 'Cyan' },
+                        { color: '#059669', label: 'Émeraude' },
+                        { color: '#7c3aed', label: 'Violet' },
+                        { color: '#4f46e5', label: 'Indigo' },
+                        { color: '#334155', label: 'Ardoise' }
+                      ].map(c => (
+                        <button
+                          key={c.color}
+                          type="button"
+                          onClick={() => setPrescSettings({ ...prescSettings, accentColor: c.color })}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            background: c.color,
+                            border: prescSettings.accentColor === c.color ? '2.5px solid #fff' : '1px solid transparent',
+                            cursor: 'pointer',
+                            outline: prescSettings.accentColor === c.color ? '2px solid #38bdf8' : 'none'
+                          }}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Filigrane discret en arrière-plan (Optionnel)</label>
+                  <input
+                    type="text"
+                    value={prescSettings.watermarkText || ''}
+                    onChange={(e) => setPrescSettings({ ...prescSettings, watermarkText: e.target.value.toUpperCase() })}
+                    placeholder="ex: CABINET MÉDICAL, DUPLICATA..."
+                    style={{ width: '100%', padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.78rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Bouton Enregistrer au bas de la colonne */}
+              <button
+                type="button"
+                onClick={handleSavePrescriptionSettings}
+                style={{
+                  padding: '12px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
+                }}
+              >
+                <span>💾</span>
+                <span>Enregistrer la Personnalisation</span>
+              </button>
+            </div>
+
+            {/* Colonne Droite : Aperçu Haute Définition en Direct */}
+            <div style={{
+              background: '#0f172a',
+              border: '1.5px solid #334155',
+              borderRadius: '12px',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.2rem' }}>👁️</span>
+                  <div>
+                    <h4 style={{ margin: 0, color: '#f8fafc', fontSize: '0.95rem' }}>Aperçu Visuel en Direct</h4>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Mise à jour instantanée ({prescSettings.pageSize || 'A4'})</span>
+                  </div>
+                </div>
+
+                {/* Bouton pour tester l'impression */}
+                <button
+                  type="button"
+                  onClick={() => generatePrescriptionReport(samplePreviewPatient, samplePreviewPrescription, previewPrescFormat)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid #38bdf8',
+                    color: '#38bdf8',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span>🖨️</span>
+                  <span>Tester Impression</span>
+                </button>
+              </div>
+
+              {/* Sélecteur de format pour l'aperçu */}
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {[
+                  { id: 'normale', label: 'Normale' },
+                  { id: 'cnam_mo', label: '🏛️ CNAM MO' },
+                  { id: 'cnam_apci', label: '★ CNAM APCI' }
+                ].map(fmt => (
+                  <button
+                    key={fmt.id}
+                    type="button"
+                    onClick={() => setPreviewPrescFormat(fmt.id)}
+                    style={{
+                      flex: 1,
+                      padding: '6px 8px',
+                      borderRadius: '6px',
+                      border: previewPrescFormat === fmt.id ? '1px solid #38bdf8' : '1px solid #334155',
+                      background: previewPrescFormat === fmt.id ? 'rgba(56, 189, 248, 0.2)' : '#1e293b',
+                      color: previewPrescFormat === fmt.id ? '#fff' : '#94a3b8',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {fmt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Rendu visuel dans iframe isolée */}
+              <div style={{
+                borderRadius: '8px',
+                overflow: 'hidden',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                height: prescSettings.pageSize === 'A5' ? '490px' : '630px',
+                transition: 'height 0.3s ease'
+              }}>
+                <iframe
+                  title="Aperçu Ordonnance"
+                  srcDoc={previewPrescriptionHtml}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    display: 'block'
+                  }}
+                />
+              </div>
+
+              <div style={{ fontSize: '0.72rem', color: '#64748b', textAlign: 'center' }}>
+                Rendu conforme au format d'impression papier et export PDF haute résolution.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* ONGLET 6 : THÈMES VISUELS & PERSONNALISATION (10 THÈMES)       */}
       {/* ============================================================== */}
       {activeTab === 'themes' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
