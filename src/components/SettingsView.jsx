@@ -3108,14 +3108,14 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#cbd5e1', marginBottom: '2px' }}>
                       <span>Marge En-tête Supérieure :</span>
-                      <strong style={{ color: '#f59e0b' }}>{prescSettings.headerTopMargin || 30} mm</strong>
+                      <strong style={{ color: '#f59e0b' }}>{prescSettings.headerTopMargin || 38} mm</strong>
                     </div>
                     <input
                       type="range"
                       min={10}
                       max={80}
                       step={1}
-                      value={prescSettings.headerTopMargin || 30}
+                      value={prescSettings.headerTopMargin || 38}
                       onChange={(e) => setPrescSettings({ ...prescSettings, headerTopMargin: Number(e.target.value) })}
                       style={{ width: '100%', accentColor: '#f59e0b' }}
                     />
@@ -3124,14 +3124,14 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#cbd5e1', marginBottom: '2px' }}>
                       <span>Marge Latérale Gauche / Droite :</span>
-                      <strong style={{ color: '#38bdf8' }}>{prescSettings.sideMargin || 8} mm</strong>
+                      <strong style={{ color: '#38bdf8' }}>{prescSettings.sideMargin || 10} mm</strong>
                     </div>
                     <input
                       type="range"
                       min={4}
                       max={25}
                       step={1}
-                      value={prescSettings.sideMargin || 8}
+                      value={prescSettings.sideMargin || 10}
                       onChange={(e) => setPrescSettings({ ...prescSettings, sideMargin: Number(e.target.value) })}
                       style={{ width: '100%', accentColor: '#0284c7' }}
                     />
@@ -3140,14 +3140,14 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#cbd5e1', marginBottom: '2px' }}>
                       <span>Marge Inférieure (Bas de page) :</span>
-                      <strong style={{ color: '#10b981' }}>{prescSettings.bottomMargin || 10} mm</strong>
+                      <strong style={{ color: '#10b981' }}>{prescSettings.bottomMargin || 30} mm</strong>
                     </div>
                     <input
                       type="range"
-                      min={6}
-                      max={35}
+                      min={10}
+                      max={55}
                       step={1}
-                      value={prescSettings.bottomMargin || 10}
+                      value={prescSettings.bottomMargin || 30}
                       onChange={(e) => setPrescSettings({ ...prescSettings, bottomMargin: Number(e.target.value) })}
                       style={{ width: '100%', accentColor: '#10b981' }}
                     />

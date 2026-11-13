@@ -87,7 +87,7 @@ function formatDoctorWelcomeName(raw) {
 export default function App() {
   const [activeTab, setActiveTab] = useState('patients'); // 'patients' | 'waiting' | 'agenda' | 'consultation' | 'prescriptions' | 'billing' | 'tools' | 'settings'
   const [selectedTool, setSelectedTool] = useState('mapa'); // 'mapa' | 'mail' | 'sms' | 'scores' | 'addicto'
-  const [toolsMenuExpanded, setToolsMenuExpanded] = useState(true);
+  const [toolsMenuExpanded, setToolsMenuExpanded] = useState(false); // Menu outils fermé par défaut
   const [settingsActiveTab, setSettingsActiveTab] = useState('backup');
 
   // Suivi rigoureux des règlements : aucune consultation sans règlement (même gratuit)

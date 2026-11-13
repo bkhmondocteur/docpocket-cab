@@ -87,9 +87,9 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
   const isA5 = (settings.pageSize || 'A5') === 'A5';
   const pageWidthMm = isA5 ? 148 : 210;
   const pageHeightMm = isA5 ? 210 : 297;
-  const sideMarginMm = settings.sideMargin || (isA5 ? 8 : 12);
-  const bottomMarginMm = settings.bottomMargin || (isA5 ? 10 : 15);
-  const headerTopMarginMm = settings.headerTopMargin || (isA5 ? 30 : 40);
+  const sideMarginMm = settings.sideMargin || (isA5 ? 10 : 12);
+  const bottomMarginMm = Math.max(settings.bottomMargin || (isA5 ? 30 : 15), isA5 ? 28 : 15);
+  const headerTopMarginMm = settings.headerTopMargin || (isA5 ? 38 : 40);
 
   // Gestion des couleurs et titres par format
   let titreOrdonnance = 'ORDONNANCE MÉDICALE';
@@ -305,11 +305,14 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       }
       .prescription-container {
         width: ${pageWidthMm}mm !important;
+        max-width: ${pageWidthMm}mm !important;
         min-height: ${pageHeightMm}mm !important;
         margin: 0 !important;
         padding-left: ${sideMarginMm}mm !important;
         padding-right: ${sideMarginMm}mm !important;
+        padding-top: 0 !important;
         padding-bottom: ${bottomMarginMm}mm !important;
+        box-sizing: border-box !important;
         box-shadow: none !important;
         border-radius: 0 !important;
         background: transparent !important;
@@ -502,31 +505,33 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       page-break-inside: avoid;
     }
     .arrete-box {
-      font-size: ${isA5 ? '10.5px' : '12px'};
+      font-size: ${isA5 ? '10px' : '12px'};
       color: #64748b;
       line-height: 1.45;
+      max-width: ${isA5 ? '52%' : '55%'};
     }
     .signature-area {
-      width: ${isA5 ? '190px' : '240px'};
+      width: ${isA5 ? '160px' : '220px'};
+      max-width: 45%;
       text-align: center;
       border-top: 1px dashed #94a3b8;
-      padding-top: 6px;
+      padding-top: 5px;
       color: #475569;
       font-size: ${isA5 ? '11px' : '12.5px'};
     }
     .signature-date {
       font-weight: 700;
       color: #0f172a;
-      font-size: ${isA5 ? '12px' : '13.5px'};
+      font-size: ${isA5 ? '11.5px' : '13.5px'};
     }
     .signature-title {
-      margin-top: 4px;
+      margin-top: 3px;
       font-weight: 800;
       color: #0f172a;
-      font-size: ${isA5 ? '11.5px' : '13px'};
+      font-size: ${isA5 ? '11px' : '12.5px'};
     }
     .signature-space {
-      height: ${isA5 ? '45px' : '65px'};
+      height: ${isA5 ? '35px' : '55px'};
     }
   </style>
 </head>
@@ -567,9 +572,13 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     </div>
   </div>
 
-  <div class="no-print print-tip-bar">
+  <div class="no-print print-tip-bar" style="background: #0369a1; padding: 8px 16px; font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
     <span>
-      💡 <strong>Conseil d'impression :</strong> Dans la fenêtre d'impression, vérifiez que <strong>Taille du papier</strong> est sur <strong>${isA5 ? 'A5' : 'A4'}</strong>, et décochez <em>« En-têtes et pieds de page »</em> pour un rendu sans aucune écriture parasite.
+      💡 <strong>Pour une impression parfaite sur votre carnet A5 :</strong> 
+      Dans Chrome (<em>Plus de paramètres</em>) : 
+      1️⃣ <strong>Taille du papier : A5</strong> • 
+      2️⃣ <strong>Marges : Aucune</strong> • 
+      3️⃣ Décochez <strong>« En-têtes et pieds de page »</strong> (supprime la date et about:blank).
     </span>
   </div>
 
@@ -597,14 +606,9 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     <!-- Cartouche Réglementaire CNAM (MO ou APCI avec N° Carnet et Affection) -->
     ${cnamCardHtml}
 
-    <!-- Titre de l'Ordonnance -->
+    <!-- Titre de l'Ordonnance (Zéro diagnostic affiché) -->
     <div class="prescription-title-box">
       <div class="prescription-title">${titreOrdonnance}</div>
-      ${prescription.indication ? `
-        <div class="prescription-indication">
-          Diagnostic : ${prescription.indication}
-        </div>
-      ` : ''}
     </div>
 
     <!-- Liste des Médicaments Prescrits (Adaptée à la largeur A5) -->

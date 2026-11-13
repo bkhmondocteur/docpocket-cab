@@ -14,9 +14,9 @@ export const DEFAULT_PRESCRIPTION_SETTINGS = {
   fontSize: 'normal',            // 'compact' | 'normal' | 'large'
   
   // Marges et calibration d'impression (en millimètres)
-  headerTopMargin: 30,           // Marge supérieure en-tête en mm (10 à 80 mm, 30mm par défaut pour papier pré-imprimé)
-  sideMargin: 8,                 // Marge latérale gauche/droite en mm (4 à 20 mm)
-  bottomMargin: 10,              // Marge inférieure en mm (6 à 30 mm)
+  headerTopMargin: 38,           // Marge supérieure en mm (38mm pour démarrer immédiatement sous Mahdia le:....)
+  sideMargin: 10,                // Marge latérale gauche/droite en mm (10mm pour centrage parfait sans couper le bord droit)
+  bottomMargin: 30,              // Marge inférieure en mm (30mm pour ne JAMAIS chevaucher le pied de page pré-imprimé du cabinet)
 
   // Mode papier à en-tête pré-imprimé par un imprimeur
   hideHeader: false,             // Masquer l'en-tête logiciel (zéro date en haut, texte calé sur papier pré-imprimé)
