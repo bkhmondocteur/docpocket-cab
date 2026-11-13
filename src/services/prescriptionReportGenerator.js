@@ -31,8 +31,8 @@ function formatPatientAge(patient) {
 
 /**
  * Construit le code HTML complet et autonome d'une ordonnance médicale officielle.
- * Adaptée automatiquement aux formats A5 (carnet) et A4 (page entière),
- * avec calibration visuelle sur papier pré-imprimé et respect strict de la confidentialité.
+ * Adaptée fidèlement au format A5 de cabinet médical (comme sur l'ancien logiciel),
+ * sans écritures parasites du navigateur (zéro date en haut, zéro URL, zéro numéro de page).
  */
 export function buildPrescriptionHtml(patient, prescription, chosenFormat = null, customSettings = null) {
   if (!patient || !prescription) {
@@ -85,9 +85,11 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
 
   // Géométrie et adaptation au format A5 vs A4
   const isA5 = (settings.pageSize || 'A5') === 'A5';
-  const sideMarginMm = settings.sideMargin || (isA5 ? 8 : 14);
-  const bottomMarginMm = settings.bottomMargin || (isA5 ? 10 : 16);
-  const headerTopMarginMm = settings.headerTopMargin || 42;
+  const pageWidthMm = isA5 ? 148 : 210;
+  const pageHeightMm = isA5 ? 210 : 297;
+  const sideMarginMm = settings.sideMargin || (isA5 ? 8 : 12);
+  const bottomMarginMm = settings.bottomMargin || (isA5 ? 10 : 15);
+  const headerTopMarginMm = settings.headerTopMargin || (isA5 ? 30 : 40);
 
   // Gestion des couleurs et titres par format
   let titreOrdonnance = 'ORDONNANCE MÉDICALE';
@@ -98,19 +100,19 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     titreOrdonnance = 'ORDONNANCE MÉDICALE CNAM — PRISE EN CHARGE INTÉGRALE APCI';
     badgeColor = '#d97706';
     cnamCardHtml = `
-      <div style="background: #fffbeb; border: 1.5px solid #d97706; border-radius: 6px; padding: ${isA5 ? '6px 10px' : '10px 16px'}; margin-bottom: ${isA5 ? '10px' : '16px'};">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #fde68a; padding-bottom: 4px; margin-bottom: 6px;">
-          <span style="font-weight: 800; color: #92400e; font-size: ${isA5 ? '10.5px' : '12.5px'}; text-transform: uppercase; letter-spacing: 0.5px;">
+      <div style="background: #fffbeb; border: 1.5px solid #d97706; border-radius: 6px; padding: ${isA5 ? '6px 10px' : '10px 14px'}; margin-bottom: ${isA5 ? '10px' : '16px'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #fde68a; padding-bottom: 4px; margin-bottom: 5px;">
+          <span style="font-weight: 800; color: #92400e; font-size: ${isA5 ? '11px' : '12.5px'}; text-transform: uppercase;">
             ★ CONVENTION CNAM — PRISE EN CHARGE INTÉGRALE APCI (100%)
           </span>
-          <span style="font-size: ${isA5 ? '9.5px' : '11.5px'}; color: #b45309; font-weight: 700;">
-            Dispense d'avance des frais (Tiers-Payant 100%)
+          <span style="font-size: ${isA5 ? '10px' : '11.5px'}; color: #b45309; font-weight: 700;">
+            Dispense d'avance des frais (100%)
           </span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: ${isA5 ? '11px' : '12.5px'}; margin-bottom: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: ${isA5 ? '11.5px' : '13px'}; margin-bottom: 5px;">
           <div>
-            <span style="color: #78350f; font-weight: 600;">N° DU CARNET CNAM :</span>
-            <strong style="color: #0f172a; font-size: ${isA5 ? '12.5px' : '14px'}; margin-left: 6px; letter-spacing: 0.5px; background: #fef3c7; padding: 1px 6px; border-radius: 4px; border: 1px solid #fcd34d;">
+            <span style="color: #78350f; font-weight: 600;">N° CARNET CNAM :</span>
+            <strong style="color: #0f172a; font-size: ${isA5 ? '13px' : '14.5px'}; margin-left: 6px; background: #fef3c7; padding: 1px 6px; border-radius: 4px; border: 1px solid #fcd34d;">
               ${numCarnet}
             </strong>
           </div>
@@ -119,9 +121,9 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
             <strong style="color: #0f172a; margin-left: 4px;">${patient.caisse || 'CNSS'}</strong>
           </div>
         </div>
-        <div style="background: rgba(217, 119, 6, 0.08); padding: 5px 8px; border-radius: 4px; border-left: 3px solid #d97706;">
-          <span style="color: #92400e; font-weight: 800; font-size: ${isA5 ? '10px' : '11px'}; text-transform: uppercase;">AFFECTION(S) APCI RETENUE(S) :</span>
-          <div style="color: #0f172a; font-weight: 700; font-size: ${isA5 ? '11.5px' : '13px'}; margin-top: 1px;">
+        <div style="background: rgba(217, 119, 6, 0.08); padding: 4px 8px; border-radius: 4px; border-left: 3px solid #d97706;">
+          <span style="color: #92400e; font-weight: 800; font-size: ${isA5 ? '10px' : '11px'}; text-transform: uppercase;">AFFECTION(S) APCI :</span>
+          <div style="color: #0f172a; font-weight: 700; font-size: ${isA5 ? '12px' : '13.5px'}; margin-top: 1px;">
             ${apciLabel}
           </div>
         </div>
@@ -131,19 +133,19 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     titreOrdonnance = 'ORDONNANCE MÉDICALE CONVENTIONNÉE CNAM — MALADIE ORDINAIRE';
     badgeColor = '#059669';
     cnamCardHtml = `
-      <div style="background: #f0fdf4; border: 1.5px solid #16a34a; border-radius: 6px; padding: ${isA5 ? '6px 10px' : '10px 16px'}; margin-bottom: ${isA5 ? '10px' : '16px'};">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #bbf7d0; padding-bottom: 4px; margin-bottom: 6px;">
-          <span style="font-weight: 800; color: #166534; font-size: ${isA5 ? '10.5px' : '12.5px'}; text-transform: uppercase; letter-spacing: 0.5px;">
+      <div style="background: #f0fdf4; border: 1.5px solid #16a34a; border-radius: 6px; padding: ${isA5 ? '6px 10px' : '10px 14px'}; margin-bottom: ${isA5 ? '10px' : '16px'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #bbf7d0; padding-bottom: 4px; margin-bottom: 5px;">
+          <span style="font-weight: 800; color: #166534; font-size: ${isA5 ? '11px' : '12.5px'}; text-transform: uppercase;">
             🏛️ CONVENTION CNAM — RÉGIME MALADIE ORDINAIRE (MO)
           </span>
-          <span style="font-size: ${isA5 ? '9.5px' : '11.5px'}; color: #15803d; font-weight: 600;">
+          <span style="font-size: ${isA5 ? '10px' : '11.5px'}; color: #15803d; font-weight: 600;">
             Filière Privée / Tiers-Payant
           </span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: ${isA5 ? '11px' : '12.5px'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: ${isA5 ? '11.5px' : '13px'};">
           <div>
-            <span style="color: #166534; font-weight: 600;">N° DU CARNET CNAM :</span>
-            <strong style="color: #0f172a; font-size: ${isA5 ? '12.5px' : '14px'}; margin-left: 6px; letter-spacing: 0.5px; background: #dcfce7; padding: 1px 6px; border-radius: 4px; border: 1px solid #86efac;">
+            <span style="color: #166534; font-weight: 600;">N° CARNET CNAM :</span>
+            <strong style="color: #0f172a; font-size: ${isA5 ? '13px' : '14.5px'}; margin-left: 6px; background: #dcfce7; padding: 1px 6px; border-radius: 4px; border: 1px solid #86efac;">
               ${numCarnet}
             </strong>
           </div>
@@ -216,34 +218,39 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     </div>
   ` : '';
 
-  // Calibrage des polices selon A5 / A4 et taille choisie
-  const fontMultiplier = settings.fontSize === 'compact' ? 0.92 : (settings.fontSize === 'large' ? 1.1 : 1.0);
-  const baseFontSize = isA5 ? (11 * fontMultiplier) : (13.5 * fontMultiplier);
-
   return `
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Ordonnance Médicale - ${patient.nom} ${patient.prenom} - ${dateStr}</title>
+  <!-- Titre vide pour empêcher Chrome d'imprimer un titre en haut de page -->
+  <title></title>
   <style>
+    /* SUPPRESSION ABSOLUE DES EN-TÊTES ET PIEDS DE PAGE CHROME (DATE, URL, 1/1) */
     @page {
-      size: ${isA5 ? 'A5' : 'A4'} ${settings.orientation || 'portrait'};
-      margin: ${isA5 ? '4mm 6mm 4mm 6mm' : '8mm 12mm 10mm 12mm'};
+      size: ${isA5 ? 'A5' : 'A4'} ${settings.orientation === 'landscape' ? 'landscape' : 'portrait'};
+      margin: 0mm !important; /* Marge zéro obligatoire pour désactiver les en-têtes et pieds de page natifs du navigateur */
     }
+    @page :left { margin: 0mm !important; }
+    @page :right { margin: 0mm !important; }
+    @page :first { margin: 0mm !important; }
+
     *, *::before, *::after {
       box-sizing: border-box;
     }
-    body {
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100%;
+      min-height: 100vh;
+      background: #f1f5f9;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       color: #0f172a;
-      background: #ffffff;
-      margin: 0;
-      padding: 0;
-      font-size: ${baseFontSize}px;
-      line-height: ${isA5 ? 1.35 : 1.5};
       -webkit-font-smoothing: antialiased;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
+
     .no-print {
       background: #0f172a;
       padding: 8px 16px;
@@ -254,6 +261,17 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       top: 0;
       z-index: 100;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      width: 100%;
+    }
+    .print-tip-bar {
+      background: #0284c7;
+      color: #ffffff;
+      padding: 7px 16px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
     }
     .btn {
       padding: 7px 14px;
@@ -271,9 +289,35 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     .btn-close { background: #475569; color: #fff; margin-left: 6px; }
 
     @media print {
-      .no-print { display: none !important; }
-      body { padding: 0; background: #ffffff !important; }
-      .preprinted-spacer { border: none !important; border-bottom: none !important; }
+      @page {
+        size: ${isA5 ? 'A5' : 'A4'} ${settings.orientation === 'landscape' ? 'landscape' : 'portrait'};
+        margin: 0mm !important;
+      }
+      html, body {
+        width: ${pageWidthMm}mm !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+      }
+      .no-print, .print-tip-bar {
+        display: none !important;
+      }
+      .prescription-container {
+        width: ${pageWidthMm}mm !important;
+        min-height: ${pageHeightMm}mm !important;
+        margin: 0 !important;
+        padding-left: ${sideMarginMm}mm !important;
+        padding-right: ${sideMarginMm}mm !important;
+        padding-bottom: ${bottomMarginMm}mm !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+      }
+      .preprinted-spacer {
+        border: none !important;
+        border-bottom: none !important;
+      }
       ${!settings.printTemplateBackground ? `
         .template-bg-layer { display: none !important; }
       ` : `
@@ -281,17 +325,21 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       `}
     }
 
+    /* CONTENEUR PRINCIPAL CALIBRÉ POUR REMPLIR EXACTEMENT LA FEUILLE A5 OU A4 */
     .prescription-container {
-      width: 100%;
-      max-width: ${isA5 ? '138mm' : '188mm'};
-      min-height: ${isA5 ? '198mm' : '275mm'};
+      width: ${pageWidthMm}mm;
+      min-height: ${pageHeightMm}mm;
       box-sizing: border-box;
       padding-left: ${sideMarginMm}mm;
       padding-right: ${sideMarginMm}mm;
       padding-bottom: ${bottomMarginMm}mm;
-      margin: 0 auto;
+      margin: 20px auto;
       position: relative;
-      background: transparent;
+      background: #ffffff;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+      border-radius: 4px;
+      font-size: ${isA5 ? '13px' : '14px'};
+      line-height: ${isA5 ? 1.4 : 1.5};
     }
 
     .preprinted-spacer {
@@ -308,7 +356,7 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       margin-bottom: ${isA5 ? '10px' : '16px'};
     }
     .doc-name {
-      font-size: ${isA5 ? '15px' : '20px'};
+      font-size: ${isA5 ? '16px' : '20px'};
       font-weight: 800;
       color: #0f172a;
       margin: 0;
@@ -317,64 +365,75 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     }
     .doc-sub {
       color: #475569;
-      font-size: ${isA5 ? '10px' : '12px'};
+      font-size: ${isA5 ? '11px' : '12px'};
       margin: 1px 0 0 0;
     }
     .doc-id {
       color: #64748b;
-      font-size: ${isA5 ? '9px' : '11px'};
+      font-size: ${isA5 ? '9.5px' : '11px'};
       margin: 3px 0 0 0;
     }
 
-    /* Cartouche Patient Allégé (Zéro CIN, Zéro Tél, Zéro Date Naissance) */
+    /* Cartouche Patient Allégé et Lisible (Ligne franche sans encadré lourd) */
     .patient-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: ${isA5 ? '6px 10px' : '8px 14px'};
-      margin-bottom: ${isA5 ? '10px' : '14px'};
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: ${isA5 ? '6px' : '8px'};
+      margin-bottom: ${isA5 ? '12px' : '16px'};
+    }
+    .patient-label {
+      font-size: ${isA5 ? '13px' : '14px'};
+      font-weight: 600;
+      color: #475569;
+      margin-right: 6px;
     }
     .patient-name {
-      font-size: ${isA5 ? '13px' : '15.5px'};
-      font-weight: 700;
+      font-size: ${isA5 ? '15px' : '17px'};
+      font-weight: 800;
       color: #0f172a;
+      letter-spacing: 0.3px;
     }
     .patient-age {
-      font-size: ${isA5 ? '11px' : '13px'};
-      font-weight: 600;
-      color: #64748b;
+      font-size: ${isA5 ? '13px' : '14px'};
+      font-weight: 700;
+      color: #0284c7;
       margin-left: 6px;
     }
 
     /* Titre Document */
     .prescription-title-box {
       text-align: center;
-      margin-bottom: ${isA5 ? '10px' : '16px'};
+      margin-bottom: ${isA5 ? '12px' : '16px'};
     }
     .prescription-title {
       display: inline-block;
-      font-size: ${isA5 ? '12px' : '14px'};
+      font-size: ${isA5 ? '13px' : '15px'};
       font-weight: 800;
       color: ${badgeColor};
       text-transform: uppercase;
-      letter-spacing: 0.6px;
+      letter-spacing: 0.8px;
       padding: 2px 10px;
       border-bottom: 2px dashed ${badgeColor};
     }
+    .prescription-indication {
+      font-size: ${isA5 ? '11px' : '12px'};
+      color: #64748b;
+      margin-top: 4px;
+      font-style: italic;
+    }
 
-    /* Corps de Prescription */
+    /* Corps de Prescription Lisible et Bien Proportionné */
     .presc-list {
       margin: 0;
       padding: 0;
       list-style-type: none;
     }
     .presc-item {
-      margin-bottom: ${isA5 ? '8px' : '14px'};
-      padding-bottom: ${isA5 ? '6px' : '10px'};
-      border-bottom: 1px dashed #e2e8f0;
+      margin-bottom: ${isA5 ? '12px' : '16px'};
+      padding-bottom: ${isA5 ? '8px' : '12px'};
+      border-bottom: 1px dashed #cbd5e1;
       page-break-inside: avoid;
     }
     .presc-item:last-child {
@@ -383,68 +442,91 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     .item-header {
       display: flex;
       align-items: baseline;
-      gap: 5px;
+      gap: 6px;
     }
     .item-number {
-      font-weight: 800;
-      color: ${badgeColor};
-      font-size: ${isA5 ? '11.5px' : '14px'};
-      min-width: 18px;
+      font-weight: 900;
+      color: #0f172a;
+      font-size: ${isA5 ? '14px' : '16px'};
+      min-width: 22px;
     }
     .item-name {
-      font-size: ${isA5 ? '12px' : '14.5px'};
-      font-weight: 700;
+      font-size: ${isA5 ? '14px' : '16px'};
+      font-weight: 800;
       color: #0f172a;
+      letter-spacing: 0.2px;
     }
     .item-forme {
-      font-size: ${isA5 ? '10px' : '11.5px'};
+      font-size: ${isA5 ? '11.5px' : '13px'};
       color: #64748b;
       font-style: italic;
+      font-weight: 500;
+    }
+    .item-apci-badge {
+      font-size: ${isA5 ? '9.5px' : '11px'};
+      background: #fef3c7;
+      color: #b45309;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 700;
     }
     .item-posology {
-      margin-left: ${isA5 ? '18px' : '24px'};
-      margin-top: 2px;
-      font-size: ${isA5 ? '11px' : '13px'};
-      font-weight: 600;
+      margin-left: ${isA5 ? '26px' : '32px'};
+      margin-top: 3px;
+      font-size: ${isA5 ? '13px' : '14.5px'};
+      font-weight: 700;
       color: #1e293b;
+      line-height: 1.4;
     }
     .item-meta {
-      margin-left: ${isA5 ? '18px' : '24px'};
-      font-size: ${isA5 ? '10px' : '11.5px'};
-      color: #64748b;
+      margin-left: ${isA5 ? '26px' : '32px'};
+      font-size: ${isA5 ? '11.5px' : '13px'};
+      color: #475569;
       margin-top: 2px;
+      font-weight: 600;
     }
     .item-consigne {
-      margin-left: ${isA5 ? '18px' : '24px'};
-      font-size: ${isA5 ? '10px' : '11.5px'};
-      color: #d97706;
-      font-weight: 500;
+      margin-left: ${isA5 ? '26px' : '32px'};
+      font-size: ${isA5 ? '11px' : '12.5px'};
+      color: #b45309;
+      font-weight: 600;
       margin-top: 2px;
     }
 
     /* Zone Bas de Page */
     .prescription-footer {
-      margin-top: ${isA5 ? '16px' : '28px'};
+      margin-top: ${isA5 ? '20px' : '30px'};
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
       page-break-inside: avoid;
     }
     .arrete-box {
-      font-size: ${isA5 ? '9.5px' : '11px'};
+      font-size: ${isA5 ? '10.5px' : '12px'};
       color: #64748b;
-      line-height: 1.4;
+      line-height: 1.45;
     }
     .signature-area {
-      width: ${isA5 ? '175px' : '230px'};
+      width: ${isA5 ? '190px' : '240px'};
       text-align: center;
       border-top: 1px dashed #94a3b8;
-      padding-top: 4px;
+      padding-top: 6px;
       color: #475569;
-      font-size: ${isA5 ? '10px' : '11.5px'};
+      font-size: ${isA5 ? '11px' : '12.5px'};
+    }
+    .signature-date {
+      font-weight: 700;
+      color: #0f172a;
+      font-size: ${isA5 ? '12px' : '13.5px'};
+    }
+    .signature-title {
+      margin-top: 4px;
+      font-weight: 800;
+      color: #0f172a;
+      font-size: ${isA5 ? '11.5px' : '13px'};
     }
     .signature-space {
-      height: ${isA5 ? '38px' : '58px'};
+      height: ${isA5 ? '45px' : '65px'};
     }
   </style>
 </head>
@@ -454,21 +536,27 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
   <!-- Barre d'outils (masquée à l'impression) -->
   <div class="no-print">
     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-      <span style="color: #fff; font-weight: 600; font-size: 13px;">
+      <span style="color: #fff; font-weight: 700; font-size: 13.5px;">
         💊 Ordonnance : ${patient.nom} ${patient.prenom}
       </span>
 
       <!-- Sélecteur rapide de modèle d'impression -->
       <select id="formatSelect" onchange="changerModele(this.value)" style="padding: 4px 8px; border-radius: 6px; background: #1e293b; color: #fff; border: 1px solid #38bdf8; font-size: 11.5px; font-weight: 600; cursor: pointer;">
-        <option value="normale" ${activeFormat === 'normale' ? 'selected' : ''}>📄 Normale (${isA5 ? 'A5' : 'A4'})</option>
+        <option value="normale" ${activeFormat === 'normale' ? 'selected' : ''}>📄 Normale</option>
         <option value="cnam_mo" ${activeFormat === 'cnam_mo' || activeFormat === 'cnam_ordinaire' ? 'selected' : ''}>🏛️ CNAM MO</option>
         <option value="cnam_apci" ${activeFormat === 'cnam_apci' || activeFormat === 'apci' ? 'selected' : ''}>★ CNAM APCI (100%)</option>
+      </select>
+
+      <!-- Sélecteur de format papier direct -->
+      <select id="pageSizeSelect" onchange="changerFormatPapier(this.value)" style="padding: 4px 8px; border-radius: 6px; background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; font-size: 11.5px; font-weight: 700; cursor: pointer;">
+        <option value="A5" ${isA5 ? 'selected' : ''}>📑 Format A5 (Carnet 148×210 mm)</option>
+        <option value="A4" ${!isA5 ? 'selected' : ''}>📄 Format A4 (210×297 mm)</option>
       </select>
     </div>
 
     <div>
       <button class="btn btn-print" onclick="window.print()">
-        🖨️ Imprimer / PDF
+        🖨️ Imprimer l'Ordonnance
       </button>
       <button class="btn btn-email" onclick="envoyerEmail()">
         ✉️ Email
@@ -479,6 +567,12 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     </div>
   </div>
 
+  <div class="no-print print-tip-bar">
+    <span>
+      💡 <strong>Conseil d'impression :</strong> Dans la fenêtre d'impression, vérifiez que <strong>Taille du papier</strong> est sur <strong>${isA5 ? 'A5' : 'A4'}</strong>, et décochez <em>« En-têtes et pieds de page »</em> pour un rendu sans aucune écriture parasite.
+    </span>
+  </div>
+
   <div class="prescription-container">
     ${templateBgLayer}
     ${headerHtml}
@@ -486,14 +580,16 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     <!-- Cartouche Patient Allégé (Zéro CIN, Zéro Tél, Zéro Date Naissance) -->
     <div class="patient-bar">
       <div>
+        <span class="patient-label">Patient(e) :</span>
         <span class="patient-name">${patientCivility} ${patient.nom.toUpperCase()} ${patient.prenom}</span>
         ${patientAgeStr ? `<span class="patient-age">(${patientAgeStr})</span>` : ''}
       </div>
       <div style="text-align: right;">
         ${(activeFormat === 'cnam_mo' || activeFormat === 'cnam_apci') ? `
-          <div style="font-size: ${isA5 ? '10px' : '11.5px'}; color: #166534; font-weight: 600;">
+          <span style="font-size: ${isA5 ? '11px' : '12px'}; color: #166534; font-weight: 700;">
             Caisse : <strong>${patient.caisse || 'CNSS'}</strong>
-          </div>
+            ${numCarnet && numCarnet !== 'Non renseigné' ? ` • Carnet : <strong>${numCarnet}</strong>` : ''}
+          </span>
         ` : ''}
       </div>
     </div>
@@ -505,13 +601,13 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     <div class="prescription-title-box">
       <div class="prescription-title">${titreOrdonnance}</div>
       ${prescription.indication ? `
-        <div style="font-size: ${isA5 ? '10.5px' : '12px'}; color: #64748b; margin-top: 4px; font-style: italic;">
-          Indication / Diagnostic : ${prescription.indication}
+        <div class="prescription-indication">
+          Diagnostic : ${prescription.indication}
         </div>
       ` : ''}
     </div>
 
-    <!-- Liste des Médicaments / Examens Prescrits -->
+    <!-- Liste des Médicaments Prescrits (Adaptée à la largeur A5) -->
     <ul class="presc-list">
       ${items.map((item, idx) => `
         <li class="presc-item">
@@ -519,7 +615,7 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
             <span class="item-number">${idx + 1}.</span>
             <span class="item-name">${item.nom}</span>
             ${item.forme ? `<span class="item-forme">(${item.forme})</span>` : ''}
-            ${item.apci ? `<span style="font-size: ${isA5 ? '9px' : '10px'}; background: #fef3c7; color: #b45309; padding: 1px 5px; border-radius: 4px; font-weight: 700;">APCI</span>` : ''}
+            ${item.apci ? `<span class="item-apci-badge">APCI</span>` : ''}
           </div>
 
           ${item.posologie ? `
@@ -544,7 +640,7 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     </ul>
 
     ${prescription.notes ? `
-      <div style="margin-top: ${isA5 ? '12px' : '16px'}; padding: 6px 10px; background: #f8fafc; border-left: 3px solid ${badgeColor}; border-radius: 4px; font-size: ${isA5 ? '10px' : '12px'}; color: #334155;">
+      <div style="margin-top: ${isA5 ? '12px' : '16px'}; padding: 6px 10px; background: #f8fafc; border-left: 3px solid ${badgeColor}; border-radius: 4px; font-size: ${isA5 ? '11px' : '12px'}; color: #334155;">
         <strong>Recommandations médicales :</strong> ${prescription.notes}
       </div>
     ` : ''}
@@ -559,8 +655,8 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
 
       ${settings.showSignatureBox ? `
         <div class="signature-area">
-          <div style="font-weight: 600; color: #334155;">${cityDateText}</div>
-          <div style="margin-top: 3px; font-weight: 700; color: #0f172a;">${settings.signatureTitle || 'Cachet & Signature du Médecin'}</div>
+          <div class="signature-date">${cityDateText}</div>
+          <div class="signature-title">${settings.signatureTitle || 'Cachet & Signature du Médecin'}</div>
           <div class="signature-space"></div>
         </div>
       ` : ''}
@@ -570,10 +666,19 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
   <script>
     window.__patient = ${JSON.stringify(patient)};
     window.__prescription = ${JSON.stringify(prescription)};
+    window.__prescriptionSettings = ${JSON.stringify(settings)};
 
     function changerModele(nouveauFormat) {
       if (window.opener && window.opener.generatePrescriptionReport) {
-        window.opener.generatePrescriptionReport(window.__patient, window.__prescription, nouveauFormat);
+        window.opener.generatePrescriptionReport(window.__patient, window.__prescription, nouveauFormat, window.__prescriptionSettings);
+      }
+      window.close();
+    }
+
+    function changerFormatPapier(nouveauFormatPapier) {
+      if (window.opener && window.opener.generatePrescriptionReport) {
+        const s = { ...(window.__prescriptionSettings || {}), pageSize: nouveauFormatPapier };
+        window.opener.generatePrescriptionReport(window.__patient, window.__prescription, null, s);
       }
       window.close();
     }
@@ -595,7 +700,7 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
 /**
  * Ouvre la fenêtre d'impression haute définition de l'ordonnance médicale.
  */
-export function generatePrescriptionReport(patient, prescription, chosenFormat = null) {
+export function generatePrescriptionReport(patient, prescription, chosenFormat = null, customSettings = null) {
   if (!patient || !prescription) {
     alert("Données insuffisantes pour générer l'ordonnance médicale.");
     return;
@@ -607,7 +712,7 @@ export function generatePrescriptionReport(patient, prescription, chosenFormat =
     return;
   }
 
-  const htmlContent = buildPrescriptionHtml(patient, prescription, chosenFormat);
+  const htmlContent = buildPrescriptionHtml(patient, prescription, chosenFormat, customSettings);
 
   printWindow.document.open();
   printWindow.document.write(htmlContent);

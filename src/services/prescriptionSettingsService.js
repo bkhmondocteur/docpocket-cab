@@ -13,10 +13,10 @@ export const DEFAULT_PRESCRIPTION_SETTINGS = {
   orientation: 'portrait',
   fontSize: 'normal',            // 'compact' | 'normal' | 'large'
   
-  // Marges et calibration d'impression
-  headerTopMargin: 42,           // Marge supérieure en-tête en millimètres (15 à 95 mm)
-  sideMargin: 8,                 // Marge latérale gauche/droite en mm (4 à 25 mm)
-  bottomMargin: 12,              // Marge inférieure en mm (8 à 40 mm)
+  // Marges et calibration d'impression (en millimètres)
+  headerTopMargin: 30,           // Marge supérieure en-tête en mm (10 à 80 mm, 30mm par défaut pour papier pré-imprimé)
+  sideMargin: 8,                 // Marge latérale gauche/droite en mm (4 à 20 mm)
+  bottomMargin: 10,              // Marge inférieure en mm (6 à 30 mm)
 
   // Mode papier à en-tête pré-imprimé par un imprimeur
   hideHeader: false,             // Masquer l'en-tête logiciel (zéro date en haut, texte calé sur papier pré-imprimé)
@@ -95,7 +95,7 @@ export function savePrescriptionSettings(settings) {
     // Sauvegarde les réglages généraux
     localStorage.setItem(getScopedKey('settings'), JSON.stringify(updated));
 
-    // Sauvegarde l'image modèle scannée séparément pour ne pas saturer l'objet
+    // Sauvegarde l'image modèle scannée séparément
     if (templateImage !== undefined) {
       if (templateImage) {
         localStorage.setItem(getScopedKey('template_img'), templateImage);

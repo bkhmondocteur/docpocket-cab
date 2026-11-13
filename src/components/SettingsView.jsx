@@ -3108,14 +3108,14 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#cbd5e1', marginBottom: '2px' }}>
                       <span>Marge En-tête Supérieure :</span>
-                      <strong style={{ color: '#f59e0b' }}>{prescSettings.headerTopMargin || 42} mm</strong>
+                      <strong style={{ color: '#f59e0b' }}>{prescSettings.headerTopMargin || 30} mm</strong>
                     </div>
                     <input
                       type="range"
-                      min={15}
-                      max={95}
+                      min={10}
+                      max={80}
                       step={1}
-                      value={prescSettings.headerTopMargin || 42}
+                      value={prescSettings.headerTopMargin || 30}
                       onChange={(e) => setPrescSettings({ ...prescSettings, headerTopMargin: Number(e.target.value) })}
                       style={{ width: '100%', accentColor: '#f59e0b' }}
                     />
