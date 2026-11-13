@@ -159,6 +159,52 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
   }
 
   const items = prescription.items || [];
+  const itemCount = items.length;
+
+  // Calcul intelligent des tailles de police et espacements selon le nombre de médicaments
+  // pour garantir que l'ordonnance s'adapte TOUJOURS sur UNE SEULE PAGE A5 ou A4
+  let baseMedName = isA5 ? 14 : 16;
+  let basePosology = isA5 ? 13 : 14.5;
+  let baseMeta = isA5 ? 11.5 : 13;
+  let baseConsigne = isA5 ? 11 : 12.5;
+  let baseItemMargin = isA5 ? 10 : 14;
+  let baseItemPadding = isA5 ? 6 : 9;
+  let baseSigSpace = isA5 ? 32 : 50;
+  let baseFooterMargin = isA5 ? 14 : 22;
+  let basePatientBarMargin = isA5 ? 10 : 14;
+
+  if (itemCount >= 7) {
+    baseMedName = isA5 ? 11.5 : 13;
+    basePosology = isA5 ? 10.5 : 12;
+    baseMeta = isA5 ? 9.5 : 11;
+    baseConsigne = isA5 ? 9.5 : 11;
+    baseItemMargin = isA5 ? 4 : 6;
+    baseItemPadding = isA5 ? 2 : 4;
+    baseSigSpace = isA5 ? 12 : 20;
+    baseFooterMargin = isA5 ? 6 : 10;
+    basePatientBarMargin = isA5 ? 6 : 8;
+  } else if (itemCount >= 5) {
+    baseMedName = isA5 ? 12.5 : 14;
+    basePosology = isA5 ? 11.5 : 13;
+    baseMeta = isA5 ? 10.5 : 12;
+    baseConsigne = isA5 ? 10 : 11.5;
+    baseItemMargin = isA5 ? 6 : 8;
+    baseItemPadding = isA5 ? 3 : 5;
+    baseSigSpace = isA5 ? 18 : 28;
+    baseFooterMargin = isA5 ? 8 : 14;
+    basePatientBarMargin = isA5 ? 8 : 10;
+  } else if (itemCount >= 3) {
+    baseMedName = isA5 ? 13.5 : 15;
+    basePosology = isA5 ? 12.5 : 14;
+    baseMeta = isA5 ? 11 : 12.5;
+    baseConsigne = isA5 ? 10.5 : 12;
+    baseItemMargin = isA5 ? 8 : 11;
+    baseItemPadding = isA5 ? 4 : 7;
+    baseSigSpace = isA5 ? 24 : 38;
+    baseFooterMargin = isA5 ? 10 : 16;
+    basePatientBarMargin = isA5 ? 8 : 12;
+  }
+
   const patientCivility = (patient.civility && !/mari|celib|veuf|divorc/i.test(patient.civility)) 
     ? patient.civility 
     : (patient.gender === 'F' ? ((patient.etat_civil === 'Célibataire' || /celib/i.test(patient.civility || '')) ? 'Mlle' : 'Mme') : 'M.');
@@ -226,6 +272,9 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
   <!-- Titre vide pour empêcher Chrome d'imprimer un titre en haut de page -->
   <title></title>
   <style>
+    :root {
+      --presc-scale: 1.0;
+    }
     /* SUPPRESSION ABSOLUE DES EN-TÊTES ET PIEDS DE PAGE CHROME (DATE, URL, 1/1) */
     @page {
       size: ${isA5 ? 'A5' : 'A4'} ${settings.orientation === 'landscape' ? 'landscape' : 'portrait'};
@@ -295,10 +344,13 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       }
       html, body {
         width: ${pageWidthMm}mm !important;
-        height: auto !important;
+        max-width: ${pageWidthMm}mm !important;
+        height: ${pageHeightMm}mm !important;
+        max-height: ${pageHeightMm}mm !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
+        overflow: hidden !important;
       }
       .no-print, .print-tip-bar {
         display: none !important;
@@ -306,7 +358,8 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       .prescription-container {
         width: ${pageWidthMm}mm !important;
         max-width: ${pageWidthMm}mm !important;
-        min-height: ${pageHeightMm}mm !important;
+        height: ${pageHeightMm}mm !important;
+        max-height: ${pageHeightMm}mm !important;
         margin: 0 !important;
         padding-left: ${sideMarginMm}mm !important;
         padding-right: ${sideMarginMm}mm !important;
@@ -316,10 +369,16 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
         box-shadow: none !important;
         border-radius: 0 !important;
         background: transparent !important;
+        overflow: hidden !important;
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
       }
       .preprinted-spacer {
         border: none !important;
         border-bottom: none !important;
+      }
+      * {
+        page-break-inside: avoid !important;
       }
       ${!settings.printTemplateBackground ? `
         .template-bg-layer { display: none !important; }
@@ -341,8 +400,8 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       background: #ffffff;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
       border-radius: 4px;
-      font-size: ${isA5 ? '13px' : '14px'};
-      line-height: ${isA5 ? 1.4 : 1.5};
+      font-size: calc(${isA5 ? '13px' : '14px'} * var(--presc-scale, 1));
+      line-height: ${itemCount >= 6 ? '1.25' : (itemCount >= 4 ? '1.32' : (isA5 ? '1.38' : '1.45'))};
     }
 
     .preprinted-spacer {
@@ -377,29 +436,29 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       margin: 3px 0 0 0;
     }
 
-    /* Cartouche Patient Allégé et Lisible (Ligne franche sans encadré lourd) */
+    /* Cartouche Patient Allégé et Lisible */
     .patient-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 2px solid #0f172a;
-      padding-bottom: ${isA5 ? '6px' : '8px'};
-      margin-bottom: ${isA5 ? '12px' : '16px'};
+      padding-bottom: calc(5px * var(--presc-scale, 1));
+      margin-bottom: calc(${basePatientBarMargin}px * var(--presc-scale, 1));
     }
     .patient-label {
-      font-size: ${isA5 ? '13px' : '14px'};
+      font-size: calc(${isA5 ? '12.5px' : '13.5px'} * var(--presc-scale, 1));
       font-weight: 600;
       color: #475569;
       margin-right: 6px;
     }
     .patient-name {
-      font-size: ${isA5 ? '15px' : '17px'};
+      font-size: calc(${isA5 ? '14.5px' : '16px'} * var(--presc-scale, 1));
       font-weight: 800;
       color: #0f172a;
       letter-spacing: 0.3px;
     }
     .patient-age {
-      font-size: ${isA5 ? '13px' : '14px'};
+      font-size: calc(${isA5 ? '12.5px' : '13.5px'} * var(--presc-scale, 1));
       font-weight: 700;
       color: #0284c7;
       margin-left: 6px;
@@ -408,34 +467,28 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     /* Titre Document */
     .prescription-title-box {
       text-align: center;
-      margin-bottom: ${isA5 ? '12px' : '16px'};
+      margin-bottom: calc(${isA5 ? '8px' : '12px'} * var(--presc-scale, 1));
     }
     .prescription-title {
       display: inline-block;
-      font-size: ${isA5 ? '13px' : '15px'};
+      font-size: calc(${isA5 ? '12px' : '14px'} * var(--presc-scale, 1));
       font-weight: 800;
       color: ${badgeColor};
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      padding: 2px 10px;
+      padding: 1px 8px;
       border-bottom: 2px dashed ${badgeColor};
     }
-    .prescription-indication {
-      font-size: ${isA5 ? '11px' : '12px'};
-      color: #64748b;
-      margin-top: 4px;
-      font-style: italic;
-    }
 
-    /* Corps de Prescription Lisible et Bien Proportionné */
+    /* Corps de Prescription Lisible et Auto-Adapté sur 1 Page */
     .presc-list {
       margin: 0;
       padding: 0;
       list-style-type: none;
     }
     .presc-item {
-      margin-bottom: ${isA5 ? '12px' : '16px'};
-      padding-bottom: ${isA5 ? '8px' : '12px'};
+      margin-bottom: calc(${baseItemMargin}px * var(--presc-scale, 1));
+      padding-bottom: calc(${baseItemPadding}px * var(--presc-scale, 1));
       border-bottom: 1px dashed #cbd5e1;
       page-break-inside: avoid;
     }
@@ -450,64 +503,64 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     .item-number {
       font-weight: 900;
       color: #0f172a;
-      font-size: ${isA5 ? '14px' : '16px'};
-      min-width: 22px;
+      font-size: calc(${baseMedName}px * var(--presc-scale, 1));
+      min-width: 20px;
     }
     .item-name {
-      font-size: ${isA5 ? '14px' : '16px'};
+      font-size: calc(${baseMedName}px * var(--presc-scale, 1));
       font-weight: 800;
       color: #0f172a;
       letter-spacing: 0.2px;
     }
     .item-forme {
-      font-size: ${isA5 ? '11.5px' : '13px'};
+      font-size: calc(${baseMeta}px * var(--presc-scale, 1));
       color: #64748b;
       font-style: italic;
       font-weight: 500;
     }
     .item-apci-badge {
-      font-size: ${isA5 ? '9.5px' : '11px'};
+      font-size: calc(${isA5 ? '9px' : '10.5px'} * var(--presc-scale, 1));
       background: #fef3c7;
       color: #b45309;
-      padding: 1px 6px;
+      padding: 1px 5px;
       border-radius: 4px;
       font-weight: 700;
     }
     .item-posology {
-      margin-left: ${isA5 ? '26px' : '32px'};
-      margin-top: 3px;
-      font-size: ${isA5 ? '13px' : '14.5px'};
+      margin-left: ${isA5 ? '20px' : '26px'};
+      margin-top: 1.5px;
+      font-size: calc(${basePosology}px * var(--presc-scale, 1));
       font-weight: 700;
       color: #1e293b;
-      line-height: 1.4;
+      line-height: 1.35;
     }
     .item-meta {
-      margin-left: ${isA5 ? '26px' : '32px'};
-      font-size: ${isA5 ? '11.5px' : '13px'};
+      margin-left: ${isA5 ? '20px' : '26px'};
+      font-size: calc(${baseMeta}px * var(--presc-scale, 1));
       color: #475569;
-      margin-top: 2px;
+      margin-top: 1px;
       font-weight: 600;
     }
     .item-consigne {
-      margin-left: ${isA5 ? '26px' : '32px'};
-      font-size: ${isA5 ? '11px' : '12.5px'};
+      margin-left: ${isA5 ? '20px' : '26px'};
+      font-size: calc(${baseConsigne}px * var(--presc-scale, 1));
       color: #b45309;
       font-weight: 600;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     /* Zone Bas de Page */
     .prescription-footer {
-      margin-top: ${isA5 ? '20px' : '30px'};
+      margin-top: calc(${baseFooterMargin}px * var(--presc-scale, 1));
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
       page-break-inside: avoid;
     }
     .arrete-box {
-      font-size: ${isA5 ? '10px' : '12px'};
+      font-size: calc(${isA5 ? '9.5px' : '11px'} * var(--presc-scale, 1));
       color: #64748b;
-      line-height: 1.45;
+      line-height: 1.4;
       max-width: ${isA5 ? '52%' : '55%'};
     }
     .signature-area {
@@ -515,23 +568,23 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       max-width: 45%;
       text-align: center;
       border-top: 1px dashed #94a3b8;
-      padding-top: 5px;
+      padding-top: calc(4px * var(--presc-scale, 1));
       color: #475569;
-      font-size: ${isA5 ? '11px' : '12.5px'};
+      font-size: calc(${isA5 ? '10.5px' : '12px'} * var(--presc-scale, 1));
     }
     .signature-date {
       font-weight: 700;
       color: #0f172a;
-      font-size: ${isA5 ? '11.5px' : '13.5px'};
+      font-size: calc(${isA5 ? '11px' : '13px'} * var(--presc-scale, 1));
     }
     .signature-title {
-      margin-top: 3px;
+      margin-top: 2px;
       font-weight: 800;
       color: #0f172a;
-      font-size: ${isA5 ? '11px' : '12.5px'};
+      font-size: calc(${isA5 ? '10.5px' : '12px'} * var(--presc-scale, 1));
     }
     .signature-space {
-      height: ${isA5 ? '35px' : '55px'};
+      height: calc(${baseSigSpace}px * var(--presc-scale, 1));
     }
   </style>
 </head>
@@ -540,23 +593,34 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
 
   <!-- Barre d'outils (masquée à l'impression) -->
   <div class="no-print">
-    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-      <span style="color: #fff; font-weight: 700; font-size: 13.5px;">
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <span style="color: #fff; font-weight: 700; font-size: 13px;">
         💊 Ordonnance : ${patient.nom} ${patient.prenom}
       </span>
 
       <!-- Sélecteur rapide de modèle d'impression -->
-      <select id="formatSelect" onchange="changerModele(this.value)" style="padding: 4px 8px; border-radius: 6px; background: #1e293b; color: #fff; border: 1px solid #38bdf8; font-size: 11.5px; font-weight: 600; cursor: pointer;">
+      <select id="formatSelect" onchange="changerModele(this.value)" style="padding: 4px 8px; border-radius: 6px; background: #1e293b; color: #fff; border: 1px solid #38bdf8; font-size: 11px; font-weight: 600; cursor: pointer;">
         <option value="normale" ${activeFormat === 'normale' ? 'selected' : ''}>📄 Normale</option>
         <option value="cnam_mo" ${activeFormat === 'cnam_mo' || activeFormat === 'cnam_ordinaire' ? 'selected' : ''}>🏛️ CNAM MO</option>
         <option value="cnam_apci" ${activeFormat === 'cnam_apci' || activeFormat === 'apci' ? 'selected' : ''}>★ CNAM APCI (100%)</option>
       </select>
 
       <!-- Sélecteur de format papier direct -->
-      <select id="pageSizeSelect" onchange="changerFormatPapier(this.value)" style="padding: 4px 8px; border-radius: 6px; background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; font-size: 11.5px; font-weight: 700; cursor: pointer;">
+      <select id="pageSizeSelect" onchange="changerFormatPapier(this.value)" style="padding: 4px 8px; border-radius: 6px; background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; font-size: 11px; font-weight: 700; cursor: pointer;">
         <option value="A5" ${isA5 ? 'selected' : ''}>📑 Format A5 (Carnet 148×210 mm)</option>
         <option value="A4" ${!isA5 ? 'selected' : ''}>📄 Format A4 (210×297 mm)</option>
       </select>
+
+      <!-- Contrôles d'ajustement dynamique de taille de police / 1 page -->
+      <div style="display: inline-flex; align-items: center; gap: 4px; background: #0f172a; padding: 2px 8px; border-radius: 6px; border: 1px solid #334155;">
+        <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">Police :</span>
+        <button type="button" onclick="ajusterEchelle(-0.04)" title="Réduire la police" style="background: #1e293b; color: #fff; border: 1px solid #475569; border-radius: 4px; padding: 2px 7px; font-weight: 800; cursor: pointer; font-size: 11px;">A−</button>
+        <span id="scaleDisplay" style="font-size: 11px; font-weight: 700; color: #38bdf8; min-width: 36px; text-align: center;">100%</span>
+        <button type="button" onclick="ajusterEchelle(+0.04)" title="Agrandir la police" style="background: #1e293b; color: #fff; border: 1px solid #475569; border-radius: 4px; padding: 2px 7px; font-weight: 800; cursor: pointer; font-size: 11px;">A+</button>
+        <button type="button" onclick="forcerAjustementUnePage(true)" title="Adapter automatiquement sur 1 page" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; cursor: pointer; margin-left: 4px;">
+          📄 1 Page Garantie
+        </button>
+      </div>
     </div>
 
     <div>
@@ -572,13 +636,12 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     </div>
   </div>
 
-  <div class="no-print print-tip-bar" style="background: #0369a1; padding: 8px 16px; font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
+  <div class="no-print print-tip-bar" style="background: #0369a1; padding: 7px 16px; font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
     <span>
-      💡 <strong>Pour une impression parfaite sur votre carnet A5 :</strong> 
-      Dans Chrome (<em>Plus de paramètres</em>) : 
-      1️⃣ <strong>Taille du papier : A5</strong> • 
-      2️⃣ <strong>Marges : Aucune</strong> • 
-      3️⃣ Décochez <strong>« En-têtes et pieds de page »</strong> (supprime la date et about:blank).
+      💡 <strong>Adaptation 1 Page Active :</strong> La police et les espacements s'adaptent automatiquement pour que toute l'ordonnance tienne sur une seule feuille (sans page 2).
+    </span>
+    <span style="font-size: 11px; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+      Dans Chrome : Papier = ${isA5 ? 'A5' : 'A4'} • Décochez « En-têtes et pieds de page »
     </span>
   </div>
 
@@ -671,6 +734,56 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     window.__patient = ${JSON.stringify(patient)};
     window.__prescription = ${JSON.stringify(prescription)};
     window.__prescriptionSettings = ${JSON.stringify(settings)};
+
+    let userScale = 1.0;
+
+    function updateScaleDisplay(s) {
+      userScale = s;
+      const el = document.getElementById('scaleDisplay');
+      if (el) el.innerText = Math.round(s * 100) + '%';
+    }
+
+    function ajusterEchelle(delta) {
+      userScale = Math.max(0.55, Math.min(1.30, userScale + delta));
+      document.documentElement.style.setProperty('--presc-scale', userScale.toFixed(3));
+      updateScaleDisplay(userScale);
+    }
+
+    function forcerAjustementUnePage(feedback) {
+      const container = document.querySelector('.prescription-container');
+      if (!container) return;
+
+      const isA5 = ${isA5 ? 'true' : 'false'};
+      const pageHeightMm = isA5 ? 210 : 297;
+      // 1 mm = 3.779528 px sous Chromium à 96 DPI
+      // Marge de tolérance de 6px pour garantir 0 débordement vers une page 2
+      const maxAllowedPx = Math.floor(pageHeightMm * 3.779528) - 6;
+
+      let currentScale = 1.0;
+      document.documentElement.style.setProperty('--presc-scale', currentScale);
+
+      // Si le contenu dépasse la hauteur d'une seule page, on réduit progressivement la police et les espacements
+      let attempts = 0;
+      while (container.scrollHeight > maxAllowedPx && attempts < 25 && currentScale > 0.58) {
+        currentScale -= 0.025;
+        document.documentElement.style.setProperty('--presc-scale', currentScale.toFixed(3));
+        attempts++;
+      }
+
+      updateScaleDisplay(currentScale);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      forcerAjustementUnePage(false);
+    });
+
+    window.addEventListener('load', () => {
+      forcerAjustementUnePage(false);
+    });
+
+    window.addEventListener('beforeprint', () => {
+      forcerAjustementUnePage(false);
+    });
 
     function changerModele(nouveauFormat) {
       if (window.opener && window.opener.generatePrescriptionReport) {
