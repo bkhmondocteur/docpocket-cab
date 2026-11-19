@@ -8,6 +8,7 @@ import {
   setUnsettledConsultation
 } from '../services/patientStorage';
 import { generateConsultationReport } from '../services/reportGenerator';
+import { generateMedicalRestCertificate } from '../services/certificateReportGenerator';
 import DeleteConsultationModal from './DeleteConsultationModal';
 
 export default function ConsultationView({ 
@@ -1078,6 +1079,32 @@ export default function ConsultationView({
                       style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }}
                     />
                   </div>
+
+                  {Number(formData.reposJours) > 0 && (
+                    <div style={{ gridColumn: isMobile ? '1' : '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={() => generateMedicalRestCertificate(selectedPatient, formData)}
+                        style={{
+                          padding: '9px 16px',
+                          borderRadius: '6px',
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          color: '#fff',
+                          fontWeight: 600,
+                          fontSize: '0.88rem',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                        }}
+                        title="Imprimer le certificat médical officiel de repos (sans diagnostic, secret médical)"
+                      >
+                        🛌 Imprimer Certificat de Repos ({formData.reposJours} j)
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end', alignItems: 'center', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
@@ -1184,6 +1211,32 @@ export default function ConsultationView({
                       title="Supprimer définitivement cette consultation avec confirmation par code PIN"
                     >
                       🗑️ Supprimer
+                    </button>
+                  )}
+
+                  {Number(formData.reposJours) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => generateMedicalRestCertificate(selectedPatient, formData)}
+                      style={{
+                        flex: isMobile ? '1 1 100%' : 'none',
+                        padding: '12px 20px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                      }}
+                      title="Imprimer le certificat médical officiel de repos (sans mention du diagnostic)"
+                    >
+                      🛌 Certificat de Repos
                     </button>
                   )}
 

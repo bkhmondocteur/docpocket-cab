@@ -3,6 +3,7 @@ import { getConsultationsByPatient, getPrescriptionsByPatient, getInvoicesByPati
 import { generateConsultationReport } from '../services/reportGenerator';
 import { generatePrescriptionReport } from '../services/prescriptionReportGenerator';
 import { generateReceiptReport } from '../services/receiptReportGenerator';
+import { generateMedicalRestCertificate } from '../services/certificateReportGenerator';
 import DeleteConsultationModal from './DeleteConsultationModal';
 import {
   getAllPractitioners,
@@ -530,6 +531,28 @@ export default function PatientDetail({
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {Number(c.reposJours) > 0 && (
+                    <button
+                      onClick={() => generateMedicalRestCertificate(patient, c)}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        background: 'rgba(16, 185, 129, 0.22)',
+                        border: '1px solid rgba(16, 185, 129, 0.45)',
+                        color: '#4ade80',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                      title="Imprimer le certificat médical officiel de repos (sans mention de diagnostic)"
+                    >
+                      🛌 Certificat ({c.reposJours} j)
+                    </button>
+                  )}
+
                   <button
                     onClick={() => generateConsultationReport(patient, c)}
                     style={{

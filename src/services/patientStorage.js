@@ -1301,6 +1301,7 @@ export async function getAllBordereaux() {
     });
 
     const isPrimary = getActivePractitionerId() === 'primary';
+    const hasDemo = storedList.some(b => b.medecinNom === 'Dr. MEDECIN Cabinet');
 
     // Pour le praticien principal ('primary' / Dr. Hamed BEN KHALIFA), injecter les 35 archives historiques si la base est neuve
     if (isPrimary && (storedList.length < 5 || hasDemo)) {
