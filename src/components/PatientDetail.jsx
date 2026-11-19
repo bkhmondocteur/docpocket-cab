@@ -23,7 +23,8 @@ export default function PatientDetail({
   onNewPrescription,
   onNewInvoice,
   onMerge,
-  onOpenDirectory
+  onOpenDirectory,
+  onNewPatient
 }) {
   if (!patient) return null;
 
@@ -135,6 +136,30 @@ export default function PatientDetail({
           >
             ← Retour à la liste
           </button>
+
+          {onNewPatient && (
+            <button
+              type="button"
+              onClick={onNewPatient}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                border: 'none',
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.84rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)'
+              }}
+              title="Créer un nouveau dossier patient"
+            >
+              <span>➕</span> Nouveau Patient
+            </button>
+          )}
           <div>
             <h1 style={{ margin: 0, fontSize: '1.35rem', color: '#f8fafc', fontWeight: 600 }}>
               {(patient.civility && !/mari|celib|veuf|divorc/i.test(patient.civility))

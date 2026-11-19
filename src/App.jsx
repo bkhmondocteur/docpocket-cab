@@ -457,8 +457,8 @@ export default function App() {
     refreshPatients(searchQuery);
   }, [searchQuery]);
 
-  const handleOpenAddModal = () => {
-    setEditingPatient(null);
+  const handleOpenAddModal = (preset = null) => {
+    setEditingPatient(preset && typeof preset === 'object' && !preset.nativeEvent ? preset : null);
     setShowModal(true);
   };
 
@@ -1414,35 +1414,38 @@ export default function App() {
               <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>▼</span>
             </button>
 
-            {/* Raccourci Thèmes Visuels (10 Thèmes au Choix) */}
-            <button
-              type="button"
-              onClick={() => {
-                setSettingsActiveTab('themes');
-                setActiveTab('settings');
-              }}
-              title="Personnalisation de l'ambiance visuelle (10 thèmes médicaux au choix)"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: isMobile ? '4px' : '6px',
-                padding: isMobile ? '5px 8px' : '6px 12px',
-                borderRadius: '20px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1.5px solid rgba(255, 255, 255, 0.15)',
-                color: '#f8fafc',
-                fontWeight: 600,
-                fontSize: isMobile ? '0.72rem' : '0.8rem',
-                cursor: 'pointer',
-                userSelect: 'none'
-              }}
-            >
-              <span>🎨</span>
-              {!isMobile && <span>Thèmes</span>}
-            </button>
+            {/* Raccourci Thèmes Visuels (10 Thèmes au Choix) - Masqué sur mobile pour préserver la barre d'action */}
+            {!isMobile && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsActiveTab('themes');
+                  setActiveTab('settings');
+                }}
+                title="Personnalisation de l'ambiance visuelle (10 thèmes médicaux au choix)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.15)',
+                  color: '#f8fafc',
+                  fontWeight: 600,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  flexShrink: 0
+                }}
+              >
+                <span>🎨</span>
+                <span>Thèmes</span>
+              </button>
+            )}
 
             {/* Bouton d'Installation PWA Google Chrome & Écran d'accueil */}
-            {!isAppInstalled && (
+            {!isAppInstalled && !isMobile && (
               <button
                 type="button"
                 onClick={handleInstallPWA}
@@ -1450,17 +1453,18 @@ export default function App() {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: isMobile ? '4px' : '6px',
-                  padding: isMobile ? '5px 9px' : '6px 13px',
+                  gap: '6px',
+                  padding: '6px 13px',
                   borderRadius: '20px',
                   background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                   border: '1.5px solid #38bdf8',
                   color: '#ffffff',
                   fontWeight: 700,
-                  fontSize: isMobile ? '0.72rem' : '0.8rem',
+                  fontSize: '0.8rem',
                   cursor: 'pointer',
                   boxShadow: '0 2px 10px rgba(2, 132, 199, 0.45)',
-                  userSelect: 'none'
+                  userSelect: 'none',
+                  flexShrink: 0
                 }}
               >
                 <span>📲</span>
@@ -1480,7 +1484,7 @@ export default function App() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: isMobile ? '4px' : '8px',
-                padding: isMobile ? '5px 10px' : '6px 14px',
+                padding: isMobile ? '5px 8px' : '6px 14px',
                 borderRadius: '20px',
                 background: autoBackupStatus.state === 'saving'
                   ? 'rgba(56, 189, 248, 0.2)'
@@ -1502,7 +1506,8 @@ export default function App() {
                   : '#4ade80',
                 fontWeight: 600,
                 cursor: 'pointer',
-                userSelect: 'none'
+                userSelect: 'none',
+                flexShrink: 0
               }}
             >
               <span>
@@ -1535,23 +1540,27 @@ export default function App() {
 
             {activeTab === 'patients' && (
               <button
-                onClick={handleOpenAddModal}
+                type="button"
+                onClick={() => handleOpenAddModal()}
                 style={{
-                  padding: isMobile ? '7px 12px' : '9px 18px',
+                  padding: isMobile ? '6px 12px' : '9px 18px',
                   borderRadius: '8px',
                   background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                   color: '#fff',
                   border: 'none',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   fontSize: isMobile ? '0.8rem' : '0.9rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.45)',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap'
                 }}
+                title="Créer un nouveau dossier patient"
               >
-                <span>+</span> {isMobile ? 'Patient' : 'Nouveau Patient'}
+                <span>➕</span> {isMobile ? 'Patient' : 'Nouveau Patient'}
               </button>
             )}
           </div>
@@ -1665,6 +1674,7 @@ export default function App() {
                   setSelectedPatient(pat);
                   setActiveTab('directory');
                 }}
+                onNewPatient={() => handleOpenAddModal()}
               />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1718,7 +1728,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Barre de Recherche, Filtres de Tri et Compteurs */}
+                {/* Barre de Recherche, Filtres de Tri et Bouton Nouveau Patient */}
                 <div style={{
                   display: 'flex',
                   flexDirection: isMobile ? 'column' : 'row',
@@ -1731,6 +1741,34 @@ export default function App() {
                   gap: '12px',
                   flexWrap: 'wrap'
                 }}>
+                  {/* Bouton Pleine Largeur Nouveau Patient sur Mobile (Premier élément visible) */}
+                  {isMobile && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAddModal(searchQuery.trim() ? { nom: searchQuery.trim().toUpperCase() } : null)}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.45)',
+                        userSelect: 'none'
+                      }}
+                      title="Créer un nouveau dossier patient"
+                    >
+                      <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>➕</span>
+                      <span>Nouveau Dossier Patient</span>
+                    </button>
+                  )}
                   {/* Champ de recherche réactif instantané avec suggestions */}
                   <div style={{ position: 'relative', width: isMobile ? '100%' : '360px' }}>
                     <input
@@ -1861,8 +1899,15 @@ export default function App() {
                     </select>
                   </div>
 
-                  {/* Compteur et sélection */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'flex-end', gap: '12px', fontSize: '0.85rem', color: '#94a3b8' }}>
+                  {/* Compteur, Sélection et Bouton Primaire Nouveau Patient (Desktop) */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: isMobile ? 'space-between' : 'flex-end',
+                    gap: '14px',
+                    fontSize: '0.85rem',
+                    color: '#94a3b8'
+                  }}>
                     {selectedPatientIds.length > 0 && (
                       <span style={{
                         background: 'rgba(56, 189, 248, 0.15)',
@@ -1879,6 +1924,42 @@ export default function App() {
                       Total fiches : <strong style={{ color: '#38bdf8' }}>{sortedPatients.length}</strong>
                       {searchQuery && <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '4px' }}>/{patients.length}</span>}
                     </span>
+
+                    {/* Bouton Primaire Nouveau Patient dans la section patient (Desktop) */}
+                    {!isMobile && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAddModal(searchQuery.trim() ? { nom: searchQuery.trim().toUpperCase() } : null)}
+                        style={{
+                          padding: '9px 18px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          color: '#fff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = '0 6px 18px rgba(2, 132, 199, 0.55)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'none';
+                          e.currentTarget.style.boxShadow = '0 4px 14px rgba(2, 132, 199, 0.4)';
+                        }}
+                        title="Créer un nouveau dossier patient"
+                      >
+                        <span style={{ fontSize: '1.05rem', lineHeight: 1 }}>➕</span>
+                        <span>Nouveau Patient</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1903,8 +1984,41 @@ export default function App() {
                         Chargement des dossiers patients...
                       </div>
                     ) : sortedPatients.length === 0 ? (
-                      <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', background: '#0f172a', borderRadius: '12px' }}>
-                        Aucun dossier patient ne correspond à votre recherche.
+                      <div style={{
+                        padding: '36px 20px',
+                        textAlign: 'center',
+                        color: '#64748b',
+                        background: '#0f172a',
+                        borderRadius: '12px',
+                        border: '1.5px dashed #334155'
+                      }}>
+                        <div style={{ fontSize: '2.4rem', marginBottom: '8px' }}>👤🔍</div>
+                        <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: '0.98rem', marginBottom: '4px' }}>
+                          {searchQuery ? `Aucun dossier trouvé pour "${searchQuery}"` : 'Aucun dossier patient dans la base'}
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: '16px' }}>
+                          {searchQuery ? 'Créez une nouvelle fiche pour ce patient en un clic.' : 'Commencez par ajouter le premier patient du cabinet.'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAddModal(searchQuery.trim() ? { nom: searchQuery.trim().toUpperCase() } : null)}
+                          style={{
+                            padding: '11px 22px',
+                            borderRadius: '10px',
+                            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                            color: '#fff',
+                            border: 'none',
+                            fontWeight: 700,
+                            fontSize: '0.9rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 14px rgba(2, 132, 199, 0.45)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}
+                        >
+                          <span>➕</span> Créer le dossier {searchQuery ? `"${searchQuery}"` : 'Nouveau Patient'}
+                        </button>
                       </div>
                     ) : (
                       <>
@@ -2141,8 +2255,36 @@ export default function App() {
                           </tr>
                         ) : sortedPatients.length === 0 ? (
                           <tr>
-                            <td colSpan="8" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                              Aucun dossier patient ne correspond à votre recherche.
+                            <td colSpan="8" style={{ padding: '50px 20px', textAlign: 'center', background: '#0f172a' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '2.5rem' }}>👤🔍</span>
+                                <span style={{ color: '#f8fafc', fontWeight: 700, fontSize: '1rem' }}>
+                                  {searchQuery ? `Aucun dossier patient ne correspond à "${searchQuery}"` : 'Aucun dossier patient dans la base'}
+                                </span>
+                                <span style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '8px' }}>
+                                  {searchQuery ? 'Souhaitez-vous créer immédiatement une fiche pour ce patient ?' : 'Cliquez ci-dessous pour ajouter un patient au cabinet.'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAddModal(searchQuery.trim() ? { nom: searchQuery.trim().toUpperCase() } : null)}
+                                  style={{
+                                    padding: '10px 22px',
+                                    borderRadius: '8px',
+                                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    fontWeight: 700,
+                                    fontSize: '0.9rem',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 4px 14px rgba(2, 132, 199, 0.45)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                  }}
+                                >
+                                  <span>➕</span> Créer le dossier {searchQuery ? `"${searchQuery}"` : 'Nouveau Patient'}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ) : (
@@ -2369,6 +2511,37 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+                )}
+
+                {/* Floating Action Button (FAB) Mobile pour Nouveau Patient */}
+                {isMobile && !selectedPatient && selectedPatientIds.length < 2 && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddModal(searchQuery.trim() ? { nom: searchQuery.trim().toUpperCase() } : null)}
+                    style={{
+                      position: 'fixed',
+                      bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+                      right: '16px',
+                      zIndex: 8500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px 18px',
+                      borderRadius: '50px',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#ffffff',
+                      border: '2px solid rgba(56, 189, 248, 0.6)',
+                      boxShadow: '0 8px 24px rgba(2, 132, 199, 0.6), 0 2px 8px rgba(0, 0, 0, 0.5)',
+                      fontWeight: 700,
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      userSelect: 'none'
+                    }}
+                    title="Créer un nouveau patient"
+                  >
+                    <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>➕</span>
+                    <span>Nouveau Patient</span>
+                  </button>
                 )}
               </div>
             )
