@@ -391,6 +391,7 @@ export async function restoreLegacyBackupZip(arrayBuffer, mode = 'merge', onProg
         temperature: c.temperat || '',
         spo2: c.sao2 || '',
         examGeneral: '',
+        examORL: '',
         examRespiratoire: '',
         examHemodynamique: '',
         examNeurologique: '',

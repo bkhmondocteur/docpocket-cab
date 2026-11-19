@@ -299,6 +299,12 @@ export function generateConsultationReport(patient, consultation) {
           <td class="exam-content">${consultation.examGeneral}</td>
         </tr>
       ` : ''}
+      ${consultation.examORL ? `
+        <tr>
+          <td class="exam-label">• Examen ORL :</td>
+          <td class="exam-content">${consultation.examORL}</td>
+        </tr>
+      ` : ''}
       ${consultation.examRespiratoire ? `
         <tr>
           <td class="exam-label">• Plan respiratoire :</td>

@@ -9,6 +9,14 @@ import {
 } from '../services/patientStorage';
 import { generateConsultationReport } from '../services/reportGenerator';
 import { generateMedicalRestCertificate } from '../services/certificateReportGenerator';
+import { 
+  getSavedMotifs, 
+  getSavedDiagnostics, 
+  saveMotifSuggestion, 
+  saveDiagnosticSuggestion, 
+  filterMotifSuggestions, 
+  filterDiagnosticSuggestions 
+} from '../services/clinicalSuggestionsService';
 import DeleteConsultationModal from './DeleteConsultationModal';
 
 export default function ConsultationView({ 
@@ -47,7 +55,7 @@ export default function ConsultationView({
         patientName: selectedPatient ? `${selectedPatient.nom} ${selectedPatient.prenom}` : '',
         date: new Date().toISOString().split('T')[0],
         heure: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        motif: 'Consultation générale',
+        motif: '',
         taMax: '',
         taMin: '',
         poids: '',
@@ -57,6 +65,7 @@ export default function ConsultationView({
         temperature: '',
         spo2: '',
         examGeneral: '',
+        examORL: '',
         examRespiratoire: '',
         examHemodynamique: '',
         examNeurologique: '',
@@ -78,6 +87,10 @@ export default function ConsultationView({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Suggestions intelligentes persistantes de motifs et diagnostics
+  const [savedMotifs, setSavedMotifs] = useState(() => getSavedMotifs());
+  const [savedDiagnostics, setSavedDiagnostics] = useState(() => getSavedDiagnostics());
+
   // Formulaire d'examen clinique & constantes
   const [formData, setFormData] = useState({
     id: consultationToEdit ? consultationToEdit.id : null,
@@ -85,7 +98,7 @@ export default function ConsultationView({
     patientName: initialPatient ? `${initialPatient.nom} ${initialPatient.prenom}` : (consultationToEdit ? consultationToEdit.patientName : ''),
     date: consultationToEdit ? consultationToEdit.date : new Date().toISOString().split('T')[0],
     heure: consultationToEdit ? consultationToEdit.heure : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    motif: consultationToEdit ? consultationToEdit.motif : (waitingEntry ? waitingEntry.motif : 'Consultation générale'),
+    motif: consultationToEdit ? (consultationToEdit.motif || '') : (waitingEntry ? (waitingEntry.motif || '') : ''),
     // Constantes biométriques
     taMax: consultationToEdit?.taMax || '',
     taMin: consultationToEdit?.taMin || '',
@@ -97,6 +110,7 @@ export default function ConsultationView({
     spo2: consultationToEdit?.spo2 || '',
     // Rubriques d'examen clinique structuré
     examGeneral: consultationToEdit?.examGeneral || '',
+    examORL: consultationToEdit?.examORL || '',
     examRespiratoire: consultationToEdit?.examRespiratoire || '',
     examHemodynamique: consultationToEdit?.examHemodynamique || '',
     examNeurologique: consultationToEdit?.examNeurologique || '',
@@ -198,8 +212,20 @@ export default function ConsultationView({
 
     try {
       setSaving(true);
+      // Mémorisation automatique dans la base de données de suggestions
+      if (formData.motif) {
+        saveMotifSuggestion(formData.motif);
+        setSavedMotifs(getSavedMotifs());
+      }
+      if (formData.diagnostic) {
+        saveDiagnosticSuggestion(formData.diagnostic);
+        setSavedDiagnostics(getSavedDiagnostics());
+      }
+
       const consultId = await saveConsultation(formData);
-      const savedConsult = { ...formData, id: consultId || formData.id };
+      const finalId = consultId || formData.id;
+      const savedConsult = { ...formData, id: finalId };
+      setFormData(prev => ({ ...prev, id: finalId }));
 
       // Si la consultation provenait de la salle d'attente, marquer automatiquement comme terminée
       if (waitingEntry && waitingEntry.id) {
@@ -239,6 +265,8 @@ export default function ConsultationView({
           // Réinitialiser les champs d'examen pour une prochaine consultation
           setFormData(prev => ({
             ...prev,
+            id: null,
+            motif: '',
             taMax: '',
             taMin: '',
             poids: '',
@@ -247,6 +275,14 @@ export default function ConsultationView({
             pouls: '',
             temperature: '',
             spo2: '',
+            examGeneral: '',
+            examORL: '',
+            examRespiratoire: '',
+            examHemodynamique: '',
+            examNeurologique: '',
+            examAbdominal: '',
+            examMusculosquelettique: '',
+            examReste: '',
             examenClinique: '',
             diagnostic: '',
             reposJours: 0,
@@ -270,8 +306,17 @@ export default function ConsultationView({
     }
     try {
       setSaving(true);
-      const saved = await saveConsultation(formData);
-      const consultData = { ...formData, id: saved?.id || formData.id || Date.now() };
+      if (formData.motif) {
+        saveMotifSuggestion(formData.motif);
+        setSavedMotifs(getSavedMotifs());
+      }
+      if (formData.diagnostic) {
+        saveDiagnosticSuggestion(formData.diagnostic);
+        setSavedDiagnostics(getSavedDiagnostics());
+      }
+      const consultId = await saveConsultation(formData);
+      const finalId = consultId || formData.id || Date.now();
+      const consultData = { ...formData, id: finalId };
       setFormData(consultData);
       if (onOpenPrescription) {
         onOpenPrescription(selectedPatient, consultData);
@@ -294,8 +339,17 @@ export default function ConsultationView({
     }
     try {
       setSaving(true);
-      const saved = await saveConsultation(formData);
-      const consultData = { ...formData, id: saved?.id || formData.id || Date.now() };
+      if (formData.motif) {
+        saveMotifSuggestion(formData.motif);
+        setSavedMotifs(getSavedMotifs());
+      }
+      if (formData.diagnostic) {
+        saveDiagnosticSuggestion(formData.diagnostic);
+        setSavedDiagnostics(getSavedDiagnostics());
+      }
+      const consultId = await saveConsultation(formData);
+      const finalId = consultId || formData.id || Date.now();
+      const consultData = { ...formData, id: finalId };
       setFormData(consultData);
       if (onOpenBilling) {
         onOpenBilling(selectedPatient, consultData);
@@ -318,8 +372,17 @@ export default function ConsultationView({
     }
     try {
       setSaving(true);
-      const saved = await saveConsultation(formData);
-      const consultData = { ...formData, id: saved?.id || formData.id || Date.now() };
+      if (formData.motif) {
+        saveMotifSuggestion(formData.motif);
+        setSavedMotifs(getSavedMotifs());
+      }
+      if (formData.diagnostic) {
+        saveDiagnosticSuggestion(formData.diagnostic);
+        setSavedDiagnostics(getSavedDiagnostics());
+      }
+      const consultId = await saveConsultation(formData);
+      const finalId = consultId || formData.id || Date.now();
+      const consultData = { ...formData, id: finalId };
       setFormData(consultData);
       if (onOpenAppointment) {
         onOpenAppointment(selectedPatient, consultData);
@@ -801,17 +864,55 @@ export default function ConsultationView({
                 gap: '14px'
               }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: '#94a3b8', marginBottom: '6px' }}>
-                    Motif de la Consultation
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>
+                      Motif de la Consultation
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 500 }}>
+                      ⚡ Suggestions mémorisées
+                    </span>
+                  </div>
                   <input
                     type="text"
                     required
+                    list="motifs-datalist"
+                    autoComplete="off"
                     value={formData.motif}
                     onChange={(e) => setFormData({ ...formData, motif: e.target.value })}
-                    placeholder="Ex: Contrôle trimestriel, Céphalées, Douleurs abdominales..."
-                    style={{ width: '100%', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff' }}
+                    placeholder="Saisissez ou choisissez le motif (ex: Syndrome grippal, Toux, Céphalées...)"
+                    style={{ width: '100%', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '0.92rem' }}
                   />
+                  <datalist id="motifs-datalist">
+                    {savedMotifs.map((m, idx) => (
+                      <option key={`m-${idx}`} value={m} />
+                    ))}
+                  </datalist>
+
+                  {/* Suggestions rapides cliquables pour le motif */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>💡 Suggestions :</span>
+                    {filterMotifSuggestions(formData.motif, 5).map((sug, idx) => (
+                      <button
+                        key={`sug-m-${idx}`}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, motif: sug })}
+                        style={{
+                          background: formData.motif === sug ? 'rgba(56, 189, 248, 0.25)' : 'rgba(56, 189, 248, 0.1)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          borderRadius: '12px',
+                          color: '#38bdf8',
+                          padding: '2px 9px',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                          transition: 'all 0.15s'
+                        }}
+                        title="Cliquer pour insérer ce motif"
+                      >
+                        + {sug}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* RUBRIQUES D'EXAMEN PHYSIQUE & OBSERVATIONS */}
@@ -835,14 +936,28 @@ export default function ConsultationView({
                     </label>
                     <input
                       type="text"
-                      placeholder="État général, pâleur, coloration des conjonctives, déshydratation, pli cutané..."
+                      placeholder="État général, asthénie, pâleur, conjonctives, déshydratation, pli cutané..."
                       value={formData.examGeneral}
                       onChange={(e) => setFormData({ ...formData, examGeneral: e.target.value })}
                       style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.85rem' }}
                     />
                   </div>
 
-                  {/* 2. Plan Respiratoire */}
+                  {/* 2. Examen ORL (Ajouté directement après le plan général) */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#38bdf8', marginBottom: '4px', fontWeight: 600 }}>
+                      • Examen ORL :
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Gorge, pharynx, amygdales, tympans/otoscopie, fosses nasales, sinus, adénopathies cervicales..."
+                      value={formData.examORL}
+                      onChange={(e) => setFormData({ ...formData, examORL: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #0284c7', borderRadius: '6px', color: '#fff', fontSize: '0.85rem' }}
+                    />
+                  </div>
+
+                  {/* 3. Plan Respiratoire */}
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
                       • Sur le plan respiratoire :
@@ -856,7 +971,7 @@ export default function ConsultationView({
                     />
                   </div>
 
-                  {/* 3. Plan Hémodynamique */}
+                  {/* 4. Plan Hémodynamique */}
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
                       • Sur le plan hémodynamique :
@@ -870,7 +985,7 @@ export default function ConsultationView({
                     />
                   </div>
 
-                  {/* 4. Plan Neurologique */}
+                  {/* 5. Plan Neurologique */}
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
                       • Sur le plan neurologique :
@@ -884,7 +999,7 @@ export default function ConsultationView({
                     />
                   </div>
 
-                  {/* 5. Plan Abdominal */}
+                  {/* 6. Plan Abdominal */}
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
                       • Sur le plan abdominal :
@@ -898,7 +1013,7 @@ export default function ConsultationView({
                     />
                   </div>
 
-                  {/* 6. Plan Musculo-squelettique */}
+                  {/* 7. Plan Musculo-squelettique */}
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
                       • Sur le plan musculo-squelettique :
@@ -912,14 +1027,14 @@ export default function ConsultationView({
                     />
                   </div>
 
-                  {/* 7. Reste de l'examen physique */}
+                  {/* 8. Reste de l'examen physique */}
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
                       • Reste de l'examen physique :
                     </label>
                     <textarea
                       rows="2"
-                      placeholder="Examen ORL, tympans, gorge, aires ganglionnaires, peau, thyroïde, etc."
+                      placeholder="Aires ganglionnaires, peau, téguments, thyroïde, etc."
                       value={formData.examReste}
                       onChange={(e) => setFormData({ ...formData, examReste: e.target.value })}
                       style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '0.85rem', resize: 'vertical' }}
@@ -928,17 +1043,55 @@ export default function ConsultationView({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: '#38bdf8', marginBottom: '6px', fontWeight: 600 }}>
-                    Diagnostic Médical / Conclusion Clinique
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '0.85rem', color: '#38bdf8', fontWeight: 600 }}>
+                      Diagnostic Médical / Conclusion Clinique
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 500 }}>
+                      ⚡ Suggestions cliniques mémorisées
+                    </span>
+                  </div>
                   <input
                     type="text"
                     required
+                    list="diagnostics-datalist"
+                    autoComplete="off"
                     value={formData.diagnostic}
                     onChange={(e) => setFormData({ ...formData, diagnostic: e.target.value })}
-                    placeholder="Ex: HTA essentielle équilibrée, Angine bactérienne, Diabète type 2..."
-                    style={{ width: '100%', padding: '10px', background: '#1e293b', border: '1px solid #38bdf8', borderRadius: '8px', color: '#fff', fontWeight: 500 }}
+                    placeholder="Saisissez ou choisissez le diagnostic (ex: Trachéo-bronchite aiguë, Angine, HTA...)"
+                    style={{ width: '100%', padding: '10px 12px', background: '#1e293b', border: '1px solid #38bdf8', borderRadius: '8px', color: '#fff', fontWeight: 500, fontSize: '0.92rem' }}
                   />
+                  <datalist id="diagnostics-datalist">
+                    {savedDiagnostics.map((d, idx) => (
+                      <option key={`d-${idx}`} value={d} />
+                    ))}
+                  </datalist>
+
+                  {/* Suggestions rapides cliquables pour le diagnostic */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>💡 Suggestions :</span>
+                    {filterDiagnosticSuggestions(formData.diagnostic, 5).map((sug, idx) => (
+                      <button
+                        key={`sug-d-${idx}`}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, diagnostic: sug })}
+                        style={{
+                          background: formData.diagnostic === sug ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.1)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          borderRadius: '12px',
+                          color: '#34d399',
+                          padding: '2px 9px',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                          transition: 'all 0.15s'
+                        }}
+                        title="Cliquer pour insérer ce diagnostic"
+                      >
+                        + {sug}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* MODULES CLINIQUES DIRECTEMENT RATTACHÉS À LA CONSULTATION EN COURS */}
@@ -1325,6 +1478,7 @@ export default function ConsultationView({
                         temperature: c.temperature || '',
                         spo2: c.spo2 || '',
                         examGeneral: c.examGeneral || '',
+                        examORL: c.examORL || '',
                         examRespiratoire: c.examRespiratoire || '',
                         examHemodynamique: c.examHemodynamique || '',
                         examNeurologique: c.examNeurologique || '',
