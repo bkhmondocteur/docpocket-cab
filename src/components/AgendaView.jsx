@@ -12,12 +12,17 @@ import {
   getGatewayUrl,
   setGatewayUrl
 } from '../services/smsGatewayService';
+import { 
+  isSmsRdvActivated, 
+  getSmsLicenseStatus 
+} from '../services/smsLicenseService';
 
 export default function AgendaView({ 
   onNewPatient,
   initialPatient = null,
   returnToConsultation = false,
-  onReturnToConsultation = null
+  onReturnToConsultation = null,
+  onNavigateToSms = null
 }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [appointments, setAppointments] = useState([]);
@@ -39,6 +44,8 @@ export default function AgendaView({
   const [gatewayUrlInput, setGatewayUrlInput] = useState(getGatewayUrl());
   const [sendSmsReminder, setSendSmsReminder] = useState(true);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [smsActive, setSmsActive] = useState(() => isSmsRdvActivated());
+  const [smsLicenseInfo, setSmsLicenseInfo] = useState(() => getSmsLicenseStatus());
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -54,7 +61,17 @@ export default function AgendaView({
   useEffect(() => {
     checkGateway();
     const interval = setInterval(checkGateway, 15000);
-    return () => clearInterval(interval);
+
+    const handleSmsLicenseChange = () => {
+      setSmsActive(isSmsRdvActivated());
+      setSmsLicenseInfo(getSmsLicenseStatus());
+    };
+    window.addEventListener('docpocket_sms_license_changed', handleSmsLicenseChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('docpocket_sms_license_changed', handleSmsLicenseChange);
+    };
   }, []);
 
   const loadData = async () => {
@@ -133,9 +150,20 @@ export default function AgendaView({
         setSelectedDate(formData.rdvDate);
       }
 
-      // Si l'option SMS 48h est cochée, tentative de transmission vers la passerelle smartphone
-      if (sendSmsReminder) {
-        transmitAppointmentToMobile(savedData).catch(err => console.warn(err));
+      // Transmission automatique conditionnelle :
+      // 1. Si DocPocket SMS RDV est ACTIVÉ : transmission automatique vers DocPocket SMS RDV
+      // 2. Si DocPocket SMS RDV n'est PAS ACTIVÉ : le RDV reste dans DocPocket Cab uniquement (aucun envoi externe)
+      const isSmsActivatedNow = isSmsRdvActivated();
+      if (isSmsActivatedNow && sendSmsReminder) {
+        transmitAppointmentToMobile(savedData)
+          .then(res => {
+            if (res && res.success) {
+              console.log("✓ RDV transmis automatiquement à DocPocket SMS RDV");
+            }
+          })
+          .catch(err => console.warn("Erreur transmission DocPocket SMS RDV:", err));
+      } else if (!isSmsActivatedNow) {
+        console.info("ℹ️ DocPocket SMS RDV non activé : rendez-vous conservé dans DocPocket Cab uniquement.");
       }
 
       setShowModal(false);
@@ -243,24 +271,41 @@ export default function AgendaView({
 
           {/* Indicateur de statut de connexion Smartphone / SMS */}
           <div 
-            onClick={() => setShowSettingsModal(true)}
+            onClick={() => {
+              if (!smsActive && onNavigateToSms) {
+                onNavigateToSms();
+              } else {
+                setShowSettingsModal(true);
+              }
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 12px',
               borderRadius: '20px',
-              background: gatewayOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-              border: `1px solid ${gatewayOnline ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-              color: gatewayOnline ? '#4ade80' : '#f87171',
+              background: !smsActive 
+                ? 'rgba(245, 158, 11, 0.12)' 
+                : (gatewayOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(56, 189, 248, 0.12)'),
+              border: `1px solid ${!smsActive ? 'rgba(245, 158, 11, 0.35)' : (gatewayOnline ? 'rgba(34, 197, 94, 0.3)' : 'rgba(56, 189, 248, 0.3)')}`,
+              color: !smsActive ? '#fbbf24' : (gatewayOnline ? '#4ade80' : '#38bdf8'),
               fontSize: '0.8rem',
               cursor: 'pointer'
             }}
-            title="Cliquez pour configurer la liaison avec l'application smartphone"
+            title={!smsActive ? "DocPocket SMS RDV non activé - Cliquez pour activer la licence" : "Liaison DocPocket SMS RDV"}
           >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: gatewayOnline ? '#22c55e' : '#ef4444' }}></span>
-            <span>📱 Passerelle Mobile : {gatewayOnline ? 'Connectée' : 'Injoignable'}</span>
-            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>⚙️</span>
+            <span style={{ 
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              background: !smsActive ? '#f59e0b' : (gatewayOnline ? '#22c55e' : '#38bdf8') 
+            }}></span>
+            <span>
+              {!smsActive 
+                ? '🔒 DocPocket SMS RDV : Non activé' 
+                : `📱 SMS RDV : ${gatewayOnline ? 'Passerelle Connectée' : 'Prête'}`}
+            </span>
+            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{!smsActive ? '🔑' : '⚙️'}</span>
           </div>
         </div>
 
@@ -819,32 +864,81 @@ export default function AgendaView({
                 />
               </div>
 
-              {/* Option rappel automatique 48h */}
-              <div style={{
-                padding: '12px 16px',
-                background: 'rgba(56, 189, 248, 0.08)',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                borderRadius: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <input
-                    type="checkbox"
-                    id="sendSmsReminder"
-                    checked={sendSmsReminder}
-                    onChange={(e) => setSendSmsReminder(e.target.checked)}
-                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                  />
-                  <label htmlFor="sendSmsReminder" style={{ color: '#38bdf8', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-                    📱 Programmer le rappel automatique SMS & Email (48h avant)
-                  </label>
+              {/* Passerelle DocPocket SMS RDV : Statut d'activation et transmission */}
+              {smsActive ? (
+                <div style={{
+                  padding: '12px 16px',
+                  background: 'rgba(34, 197, 94, 0.08)',
+                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input
+                        type="checkbox"
+                        id="sendSmsReminder"
+                        checked={sendSmsReminder}
+                        onChange={(e) => setSendSmsReminder(e.target.checked)}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#22c55e' }}
+                      />
+                      <label htmlFor="sendSmsReminder" style={{ color: '#4ade80', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
+                        📱 Transmettre automatiquement à DocPocket SMS RDV (Rappels 48h)
+                      </label>
+                    </div>
+                    <span style={{ fontSize: '0.7rem', background: 'rgba(34, 197, 94, 0.2)', color: '#4ade80', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                      ✓ SMS RDV Activé
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#94a3b8', paddingLeft: '28px' }}>
+                    Le rendez-vous sera transmis automatiquement à la passerelle DocPocket SMS RDV pour le smartphone.
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', paddingLeft: '28px' }}>
-                  Transmet la date et l'heure à votre smartphone via l'application <strong>DocPocket SMS RDV</strong>.
+              ) : (
+                <div style={{
+                  padding: '12px 16px',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fbbf24', fontWeight: 700, fontSize: '0.86rem' }}>
+                      <span>🔒</span>
+                      <span>DocPocket SMS RDV : Non activé</span>
+                    </div>
+                    {onNavigateToSms && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowModal(false);
+                          onNavigateToSms();
+                        }}
+                        style={{
+                          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          color: '#000',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '4px 10px',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(245, 158, 11, 0.3)'
+                        }}
+                      >
+                        ⚡ Activer dans Outils
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                    Ce rendez-vous restera conservé dans <strong>DocPocket Cab uniquement</strong>. La passerelle et la transmission vers le smartphone sont inactives tant que la clé de licence DocPocket SMS RDV n'est pas activée.
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div style={{
                 position: 'sticky',

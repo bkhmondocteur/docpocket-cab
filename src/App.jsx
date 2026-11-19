@@ -2401,6 +2401,10 @@ export default function App() {
                 setAppointmentTargetPatient(null);
                 setActiveTab('consultation');
               }}
+              onNavigateToSms={() => {
+                setSelectedTool('sms');
+                setActiveTab('tools');
+              }}
             />
           )}
 

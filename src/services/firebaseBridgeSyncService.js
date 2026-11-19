@@ -18,6 +18,7 @@ import {
   clearDemoDataIfPresent
 } from './patientStorage';
 import { getActiveLicensePartitionId, getLicenseStatus } from './licenseService';
+import { getSmsLicenseSyncPayload, autoActivateSmsOnMobile } from './smsLicenseService';
 
 const CONFIG_STORAGE_KEY = 'docpocket_firebase_bridge_config';
 const LAST_SYNC_KEY = 'docpocket_bridge_last_sync_time';
@@ -548,6 +549,9 @@ export async function uploadBackupToBridge(backupData, reason = 'auto_sync', for
   }
 
   // 3. Notre appareil possède la sauvegarde la plus récente et différente : découpage et envoi des morceaux
+  if (!backupData.smsRdvLicense) {
+    backupData.smsRdvLicense = getSmsLicenseSyncPayload();
+  }
   const jsonStr = JSON.stringify(backupData);
   const totalLength = jsonStr.length;
   const totalChunks = Math.ceil(totalLength / CHUNK_SIZE);
@@ -606,7 +610,8 @@ export async function uploadBackupToBridge(backupData, reason = 'auto_sync', for
       invoicesCount: localFp.invoicesCount,
       bordereauxCount: localFp.bordereauxCount
     },
-    reason
+    reason,
+    smsRdvLicense: getSmsLicenseSyncPayload()
   };
 
   await firebaseFetch('payload/metadata', {
@@ -622,7 +627,8 @@ export async function uploadBackupToBridge(backupData, reason = 'auto_sync', for
     sourceDeviceId: deviceId,
     sourceDeviceName: deviceName,
     isMobile,
-    stats: metadata.stats
+    stats: metadata.stats,
+    smsRdvLicense: metadata.smsRdvLicense
   };
 
   await firebaseFetch('signals/latest', {
@@ -877,6 +883,21 @@ export async function smartDeduplicatingMerge(incomingData, onProgress = () => {
     }
   }
 
+  // 6. Synchronisation automatique de la licence DocPocket SMS RDV sur mobile si PC activé
+  if (backupData?.smsRdvLicense) {
+    try {
+      const autoActivated = autoActivateSmsOnMobile(backupData.smsRdvLicense);
+      if (autoActivated) {
+        notifyBridgeSubscribers({
+          type: 'SMS_LICENSE_SYNCED',
+          message: '✓ DocPocket SMS RDV activé automatiquement depuis votre PC !'
+        });
+      }
+    } catch (e) {
+      console.warn("Erreur auto-activation licence SMS:", e);
+    }
+  }
+
   onProgress("✓ Synchronisation terminée avec succès !");
   return mergeReport;
 }
@@ -1079,6 +1100,23 @@ async function handleIncomingSignal(signal) {
     return;
   }
 
+  // CAS 0-BIS : Synchronisation automatique de la licence DocPocket SMS RDV vers mobile
+  if (signal.type === 'SMS_LICENSE_UPDATED' && isMobile && signal.smsRdvLicense) {
+    const activated = autoActivateSmsOnMobile(signal.smsRdvLicense);
+    if (activated) {
+      notifyBridgeSubscribers({
+        type: 'SMS_LICENSE_SYNCED',
+        message: '✓ DocPocket SMS RDV activé automatiquement depuis votre PC !'
+      });
+    }
+    return;
+  }
+
+  // Si le signal transporte la licence SMS et qu'on est sur mobile
+  if (isMobile && signal.smsRdvLicense) {
+    autoActivateSmsOnMobile(signal.smsRdvLicense);
+  }
+
   // CAS 1 : Le téléphone Android demande la sauvegarde initiale au PC
   if (signal.type === 'REQUEST_INITIAL_BACKUP' && isPc) {
     isHandlingSync = true;
@@ -1111,6 +1149,7 @@ async function handleIncomingSignal(signal) {
           bordereauxCount: bordereaux.length
         },
         doctorProfile,
+        smsRdvLicense: getSmsLicenseSyncPayload(),
         data: { patients, consultations, prescriptions, invoices, bordereaux }
       };
 
@@ -1270,4 +1309,41 @@ export function stopBridgeListener() {
 export function restartBridgeListener() {
   stopBridgeListener();
   startBridgeListener();
+}
+
+/**
+ * Diffuse immédiatement la licence DocPocket SMS RDV vers le pont Firebase
+ * pour synchronisation instantanée vers le mobile
+ */
+export async function syncSmsLicenseDirectlyToBridge() {
+  try {
+    const lic = getSmsLicenseSyncPayload();
+    if (!lic) return;
+    const deviceId = getOrCreateDeviceId();
+    const deviceName = getDeviceDisplayName();
+
+    const signal = {
+      type: 'SMS_LICENSE_UPDATED',
+      timestamp: Date.now(),
+      sourceDeviceId: deviceId,
+      sourceDeviceName: deviceName,
+      isMobile: isMobileDevice(),
+      smsRdvLicense: lic
+    };
+
+    await firebaseFetch('signals/latest', {
+      method: 'PUT',
+      body: JSON.stringify(signal)
+    });
+  } catch (e) {
+    // Silencieux si hors-ligne
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('docpocket_sms_license_changed', (e) => {
+    if (e.detail && !isMobileDevice()) {
+      syncSmsLicenseDirectlyToBridge();
+    }
+  });
 }

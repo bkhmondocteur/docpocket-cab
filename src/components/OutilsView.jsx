@@ -18,6 +18,19 @@ import {
   saveAddictoRecord,
   deleteAddictoRecord
 } from '../services/toolsStorage';
+import { 
+  isSmsRdvActivated, 
+  getSmsLicenseStatus, 
+  activateSmsLicense, 
+  deactivateSmsLicense 
+} from '../services/smsLicenseService';
+import { 
+  getTransmittedAppointmentsQueue, 
+  markAppointmentSmsSent, 
+  testGatewayConnection, 
+  getGatewayUrl, 
+  setGatewayUrl 
+} from '../services/smsGatewayService';
 
 export default function OutilsView({
   initialTool = 'mapa',
@@ -1529,9 +1542,27 @@ function MailPocketProModule({ patient, onNotify }) {
 }
 
 // ============================================================================
-// 3. MODULE DOCPOCKET SMS RDV (RAPPELS DE RENDEZ-VOUS)
+// 3. MODULE DOCPOCKET SMS RDV (RAPPELS DE RENDEZ-VOUS & PASSERELLE MOBILE)
 // ============================================================================
 function DocPocketSmsModule({ patient, allPatients, onNotify }) {
+  // Gestion de la licence dédiée DocPocket SMS RDV
+  const [smsLicense, setSmsLicense] = useState(() => getSmsLicenseStatus());
+  const [licenseInput, setLicenseInput] = useState('');
+  const [licenseError, setLicenseError] = useState('');
+  const [licenseSuccess, setLicenseSuccess] = useState('');
+
+  // Sous-onglet du module : 'queue' (file d'attente reçue) | 'direct' (envoi personnalisé) | 'history' (journal) | 'settings' (passerelle)
+  const [activeSubTab, setActiveSubTab] = useState('queue');
+
+  // Passerelle locale
+  const [gatewayOnline, setGatewayOnline] = useState(false);
+  const [gatewayUrl, setGatewayUrlState] = useState(getGatewayUrl());
+  const [isEditingGateway, setIsEditingGateway] = useState(false);
+
+  // File d'attente des RDV transmis depuis DocPocket Cab
+  const [transmittedQueue, setTransmittedQueue] = useState(() => getTransmittedAppointmentsQueue());
+
+  // Formulaire d'envoi direct
   const [telephone, setTelephone] = useState(patient?.telephone || '');
   const [nom, setNom] = useState(patient ? `${patient.nom} ${patient.prenom}` : '');
   const [dateRdv, setDateRdv] = useState(() => {
@@ -1543,6 +1574,36 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
   const [langue, setLangue] = useState('fr'); // 'fr' | 'ar' | 'en'
   const [history, setHistory] = useState(() => getSmsHistory());
 
+  // Écoute de l'état de la licence et de la file d'attente
+  useEffect(() => {
+    const handleLicenseChange = () => {
+      setSmsLicense(getSmsLicenseStatus());
+    };
+    const handleQueueChange = (e) => {
+      setTransmittedQueue(e.detail || getTransmittedAppointmentsQueue());
+    };
+
+    window.addEventListener('docpocket_sms_license_changed', handleLicenseChange);
+    window.addEventListener('docpocket_sms_queue_updated', handleQueueChange);
+
+    return () => {
+      window.removeEventListener('docpocket_sms_license_changed', handleLicenseChange);
+      window.removeEventListener('docpocket_sms_queue_updated', handleQueueChange);
+    };
+  }, []);
+
+  // Vérification de la passerelle smartphone
+  const checkGateway = async () => {
+    const online = await testGatewayConnection();
+    setGatewayOnline(online);
+  };
+
+  useEffect(() => {
+    checkGateway();
+    const interval = setInterval(checkGateway, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (patient) {
       setNom(`${patient.nom} ${patient.prenom}`);
@@ -1550,14 +1611,47 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
     }
   }, [patient]);
 
-  // Message généré selon la langue
-  const messageText = useMemo(() => {
-    const tmpl = DEFAULT_SMS_TEMPLATES[langue] || DEFAULT_SMS_TEMPLATES.fr;
-    const dateFormatted = new Date(dateRdv).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  // Activation de la licence
+  const handleActivate = (keyToUse = null) => {
+    setLicenseError('');
+    setLicenseSuccess('');
+    const key = (keyToUse || licenseInput || '').trim().toUpperCase();
+    if (!key) {
+      setLicenseError('Veuillez saisir votre clé de licence DocPocket SMS RDV.');
+      return;
+    }
+    const res = activateSmsLicense(key);
+    if (res.valid) {
+      setSmsLicense(getSmsLicenseStatus());
+      setLicenseSuccess('✓ DocPocket SMS RDV activé avec succès ! Synchronisation mobile active.');
+      setLicenseInput('');
+      onNotify('✓ Licence DocPocket SMS RDV activée');
+    } else {
+      setLicenseError(res.error || 'Clé de licence invalide.');
+    }
+  };
+
+  // Désactivation de la licence
+  const handleDeactivate = () => {
+    if (window.confirm("Êtes-vous sûr de vouloir désactiver DocPocket SMS RDV sur ce poste ?\n\nLes rendez-vous ne seront plus transmis automatiquement à votre smartphone.")) {
+      deactivateSmsLicense();
+      setSmsLicense(getSmsLicenseStatus());
+      onNotify('DocPocket SMS RDV désactivé');
+    }
+  };
+
+  // Génération du texte de SMS
+  const generateSmsBody = (patientName, rdvD, rdvH, lang = 'fr') => {
+    const tmpl = DEFAULT_SMS_TEMPLATES[lang] || DEFAULT_SMS_TEMPLATES.fr;
+    const dateFormatted = new Date(rdvD).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     return tmpl
-      .replace('{nom}', nom || 'Cher Patient')
+      .replace('{nom}', patientName || 'Cher Patient')
       .replace('{date}', dateFormatted)
-      .replace('{heure}', heureRdv);
+      .replace('{heure}', rdvH);
+  };
+
+  const messageText = useMemo(() => {
+    return generateSmsBody(nom, dateRdv, heureRdv, langue);
   }, [langue, nom, dateRdv, heureRdv]);
 
   const handleSendViaMobileSms = () => {
@@ -1587,249 +1681,824 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
     onNotify('Texte du rappel SMS copié');
   };
 
+  // Envoyer un SMS depuis la file d'attente
+  const handleSendQueuedSms = (item) => {
+    if (!item.telephone) {
+      alert("Ce rendez-vous ne comporte pas de numéro de téléphone pour le patient.");
+      return;
+    }
+    const cleanPhone = item.telephone.replace(/\s+/g, '');
+    const body = generateSmsBody(item.nomPatient, item.dateRdv, item.heureRdv, item.language || 'fr');
+    const smsUri = `sms:${cleanPhone}?body=${encodeURIComponent(body)}`;
+    window.open(smsUri, '_self');
+
+    markAppointmentSmsSent(item.id);
+    setTransmittedQueue(getTransmittedAppointmentsQueue());
+
+    saveSmsLog({
+      nom: item.nomPatient,
+      telephone: cleanPhone,
+      dateRdv: item.dateRdv,
+      heureRdv: item.heureRdv,
+      langue: item.language || 'fr',
+      message: body,
+      source: 'DocPocket Cab (Transmis auto)'
+    });
+    setHistory(getSmsHistory());
+    onNotify(`Rappel SMS ouvert pour ${item.nomPatient}`);
+  };
+
+  const handleCopyQueuedSms = (item) => {
+    const body = generateSmsBody(item.nomPatient, item.dateRdv, item.heureRdv, item.language || 'fr');
+    navigator.clipboard.writeText(body);
+    onNotify(`Texte SMS copié pour ${item.nomPatient}`);
+  };
+
+  // --------------------------------------------------------------------------
+  // CAS 1 : MODULE NON ACTIVÉ -> BANNIÈRE & FORMULAIRE DE VERROUILLAGE
+  // --------------------------------------------------------------------------
+  if (!smsLicense.isLicensed) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* En-tête de verrouillage */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%)',
+          borderRadius: '14px',
+          padding: '24px',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.6rem' }}>💬</span>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#f8fafc', fontWeight: 700 }}>
+                DocPocket SMS RDV - Passerelle & Rappels de Rendez-vous
+              </h2>
+              <span style={{
+                background: 'rgba(245, 158, 11, 0.15)',
+                color: '#fbbf24',
+                fontSize: '0.74rem',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontWeight: 700,
+                border: '1px solid rgba(245, 158, 11, 0.3)'
+              }}>
+                🔒 Module Non Activé
+              </span>
+            </div>
+            <div style={{ fontSize: '0.86rem', color: '#cbd5e1', marginTop: '8px', maxWidth: '780px', lineHeight: 1.5 }}>
+              DocPocket SMS RDV permet la transmission automatique des rendez-vous fixés dans <strong>DocPocket Cab</strong> vers votre smartphone et l'envoi de rappels SMS 48h avant aux patients. Ce module requiert sa propre clé de licence dédiée.
+            </div>
+          </div>
+        </div>
+
+        {/* Carte d'Activation Principale */}
+        <div style={{
+          background: '#0f172a',
+          borderRadius: '14px',
+          padding: '28px',
+          border: '1px solid rgba(56, 189, 248, 0.2)',
+          boxShadow: '0 12px 30px rgba(0, 0, 0, 0.4)',
+          maxWidth: '720px',
+          margin: '0 auto',
+          width: '100%'
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: '22px' }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: 'rgba(56, 189, 248, 0.1)',
+              border: '2px solid rgba(56, 189, 248, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.8rem',
+              margin: '0 auto 12px'
+            }}>
+              🔑
+            </div>
+            <h3 style={{ margin: 0, fontSize: '1.18rem', color: '#f8fafc', fontWeight: 700 }}>
+              Activation de DocPocket SMS RDV
+            </h3>
+            <p style={{ margin: '6px 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>
+              Entrez votre clé de licence pour déverrouiller la passerelle et la transmission des RDV
+            </p>
+          </div>
+
+          {licenseError && (
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid #ef4444',
+              color: '#fca5a5',
+              fontSize: '0.85rem',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span>⛔</span> {licenseError}
+            </div>
+          )}
+
+          {licenseSuccess && (
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              background: 'rgba(34, 197, 94, 0.12)',
+              border: '1px solid #22c55e',
+              color: '#86efac',
+              fontSize: '0.85rem',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span>✓</span> {licenseSuccess}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 600, marginBottom: '6px' }}>
+                Clé de Licence DocPocket SMS RDV (Format DPSMS-XX-YYYYMMDD-XXXX-XXXX) :
+              </label>
+              <input
+                type="text"
+                value={licenseInput}
+                onChange={(e) => setLicenseInput(e.target.value.toUpperCase())}
+                placeholder="Ex: DPSMS-03-20271231-16F3-9E14 ou DPSMS-2026-TRIAL"
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '10px',
+                  color: '#38bdf8',
+                  fontSize: '0.98rem',
+                  fontWeight: 600,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.5px'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => handleActivate()}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)'
+                }}
+              >
+                ⚡ Activer DocPocket SMS RDV
+              </button>
+              <button
+                type="button"
+                onClick={() => handleActivate('DPSMS-2026-TRIAL')}
+                style={{
+                  padding: '12px 18px',
+                  borderRadius: '10px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#fbbf24',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+                title="Activer la version d'évaluation 30 jours sans engagement"
+              >
+                🎁 Essai Gratuit 30 Jours
+              </button>
+            </div>
+
+            {/* Note d'activation automatique sur smartphone */}
+            <div style={{
+              marginTop: '12px',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              background: 'rgba(56, 189, 248, 0.06)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+              fontSize: '0.8rem',
+              color: '#94a3b8',
+              lineHeight: 1.45
+            }}>
+              <strong style={{ color: '#38bdf8' }}>📱 Activation Mobile Automatique :</strong> Dès que vous activez la licence sur ce PC, elle est synchronisée automatiquement sur votre smartphone via le pont sécurisé. Vous n'aurez pas besoin de la ressaisir sur mobile.
+            </div>
+
+            <div style={{
+              marginTop: '8px',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: 'rgba(100, 116, 139, 0.1)',
+              fontSize: '0.78rem',
+              color: '#64748b'
+            }}>
+              ℹ️ Tant que la licence n'est pas activée, vos rendez-vous pris dans l'Agenda restent enregistrés <strong>dans DocPocket Cab uniquement</strong>, garantissant une étanchéité complète.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // CAS 2 : MODULE ACTIVÉ -> PANNEAU COMPLET AVEC GESTION & FILE D'ATTENTE
+  // --------------------------------------------------------------------------
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      {/* Barre d'état de licence et passerelle */}
       <div style={{
-        background: '#1e293b',
-        borderRadius: '12px',
+        background: '#131d36',
+        borderRadius: '14px',
         padding: '18px 22px',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        border: '1px solid rgba(34, 197, 94, 0.3)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '14px'
+        gap: '14px',
+        boxShadow: '0 6px 20px rgba(0, 0, 0, 0.25)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#f8fafc', fontWeight: 700 }}>
-              DocPocket SMS RDV - Rappels Automatisés de Rendez-vous
+              DocPocket SMS RDV - Passerelle Active
             </h2>
             <span style={{
-              background: 'rgba(56, 189, 248, 0.15)',
-              color: '#38bdf8',
-              fontSize: '0.75rem',
-              padding: '2px 8px',
+              background: 'rgba(34, 197, 94, 0.15)',
+              color: '#4ade80',
+              fontSize: '0.74rem',
+              padding: '3px 10px',
+              borderRadius: '6px',
+              fontWeight: 700,
+              border: '1px solid rgba(34, 197, 94, 0.3)'
+            }}>
+              ✓ Licence Active ({smsLicense.daysRemaining === 'Illimité' ? 'À vie' : `${smsLicense.daysRemaining} jours restants`})
+            </span>
+            <span style={{
+              background: gatewayOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+              color: gatewayOnline ? '#4ade80' : '#38bdf8',
+              fontSize: '0.74rem',
+              padding: '3px 10px',
               borderRadius: '6px',
               fontWeight: 600
             }}>
-              Passerelle SMS & Agenda
+              📱 {gatewayOnline ? 'Passerelle Smartphone Connectée' : 'Passerelle Prête'}
             </span>
           </div>
-          <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '4px' }}>
-            Envoi immédiat de notifications et rappels SMS personnalisés en Français, Arabe ou Anglais
+          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
+            Transmission automatique des rendez-vous activée • Synchronisé avec le smartphone en Wi-Fi / 4G
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
-            onClick={handleCopySms}
+            type="button"
+            onClick={() => setIsEditingGateway(!isEditingGateway)}
             style={{
-              padding: '8px 14px',
+              padding: '7px 12px',
               borderRadius: '8px',
-              background: 'rgba(255,255,255,0.08)',
+              background: 'rgba(255, 255, 255, 0.08)',
               border: 'none',
               color: '#cbd5e1',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            ⚙️ Réglages Passerelle
+          </button>
+          <button
+            type="button"
+            onClick={handleDeactivate}
+            style={{
+              padding: '7px 12px',
+              borderRadius: '8px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#f87171',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Désactiver
+          </button>
+        </div>
+      </div>
+
+      {/* Édition URL Passerelle si demandée */}
+      {isEditingGateway && (
+        <div style={{
+          background: '#0f172a',
+          padding: '14px 18px',
+          borderRadius: '10px',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap'
+        }}>
+          <label style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>URL Passerelle SMS Smartphone :</label>
+          <input
+            type="text"
+            value={gatewayUrl}
+            onChange={(e) => setGatewayUrlState(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: '240px',
+              padding: '6px 12px',
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              color: '#38bdf8',
+              fontSize: '0.85rem'
+            }}
+          />
+          <button
+            type="button"
+            onClick={async () => {
+              setGatewayUrl(gatewayUrl);
+              await checkGateway();
+              setIsEditingGateway(false);
+              onNotify('Paramètres passerelle enregistrés');
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              background: '#0284c7',
+              color: '#fff',
+              border: 'none',
               fontSize: '0.8rem',
               fontWeight: 600,
               cursor: 'pointer'
             }}
           >
-            📋 Copier SMS
-          </button>
-          <button
-            onClick={handleSendViaMobileSms}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-              border: 'none',
-              color: '#fff',
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)'
-            }}
-          >
-            📱 Envoyer par SMS
+            Enregistrer
           </button>
         </div>
+      )}
+
+      {/* Barre d'onglets internes du module */}
+      <div style={{
+        display: 'flex',
+        gap: '6px',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        paddingBottom: '4px'
+      }}>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('queue')}
+          style={{
+            padding: '9px 16px',
+            border: 'none',
+            borderRadius: '8px 8px 0 0',
+            background: activeSubTab === 'queue' ? '#1e293b' : 'transparent',
+            color: activeSubTab === 'queue' ? '#38bdf8' : '#94a3b8',
+            fontWeight: activeSubTab === 'queue' ? 700 : 500,
+            fontSize: '0.86rem',
+            cursor: 'pointer',
+            borderBottom: activeSubTab === 'queue' ? '2px solid #38bdf8' : '2px solid transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <span>📥</span>
+          <span>Rendez-vous Reçus ({transmittedQueue.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('direct')}
+          style={{
+            padding: '9px 16px',
+            border: 'none',
+            borderRadius: '8px 8px 0 0',
+            background: activeSubTab === 'direct' ? '#1e293b' : 'transparent',
+            color: activeSubTab === 'direct' ? '#38bdf8' : '#94a3b8',
+            fontWeight: activeSubTab === 'direct' ? 700 : 500,
+            fontSize: '0.86rem',
+            cursor: 'pointer',
+            borderBottom: activeSubTab === 'direct' ? '2px solid #38bdf8' : '2px solid transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <span>✍️</span>
+          <span>Envoi Manuel / Personnalisé</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('history')}
+          style={{
+            padding: '9px 16px',
+            border: 'none',
+            borderRadius: '8px 8px 0 0',
+            background: activeSubTab === 'history' ? '#1e293b' : 'transparent',
+            color: activeSubTab === 'history' ? '#38bdf8' : '#94a3b8',
+            fontWeight: activeSubTab === 'history' ? 700 : 500,
+            fontSize: '0.86rem',
+            cursor: 'pointer',
+            borderBottom: activeSubTab === 'history' ? '2px solid #38bdf8' : '2px solid transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <span>🕒</span>
+          <span>Journal SMS ({history.length})</span>
+        </button>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-        gap: '20px'
-      }}>
-        {/* Formulaire de configuration du rappel */}
+      {/* CONTENU SOUS-ONGLET 1 : FILE D'ATTENTE DES RDV REÇUS DEPUIS DOCPOCKET CAB */}
+      {activeSubTab === 'queue' && (
         <div style={{
           background: '#131d36',
           borderRadius: '12px',
           padding: '20px',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px'
+          border: '1px solid rgba(255, 255, 255, 0.08)'
         }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
             <div>
-              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                Nom du Patient :
-              </label>
-              <input
-                type="text"
-                value={nom}
-                onChange={(e) => setNom(e.target.value)}
-                placeholder="Ex: Mohamed BEN SALAH"
-                style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
-              />
+              <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', fontWeight: 700 }}>
+                📥 File des Rendez-vous Transmis Automatiquement
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                Rendez-vous programmés dans l'Agenda et transmis à DocPocket SMS RDV pour rappel 48h
+              </p>
             </div>
-            <div>
-              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                N° Téléphone Portable :
-              </label>
-              <input
-                type="tel"
-                required
-                value={telephone}
-                onChange={(e) => setTelephone(e.target.value)}
-                placeholder="Ex: 98 123 456"
-                style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '0.85rem', fontWeight: 600 }}
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setTransmittedQueue(getTransmittedAppointmentsQueue())}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#cbd5e1',
+                fontSize: '0.75rem',
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Actualiser la file
+            </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <div>
-              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                Date du Rendez-Vous :
-              </label>
-              <input
-                type="date"
-                value={dateRdv}
-                onChange={(e) => setDateRdv(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                Heure du Rendez-Vous :
-              </label>
-              <input
-                type="time"
-                value={heureRdv}
-                onChange={(e) => setHeureRdv(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
-              Langue du Message SMS :
-            </label>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setLangue('fr')}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: langue === 'fr' ? '#0284c7' : 'rgba(255,255,255,0.06)',
-                  color: '#fff',
-                  fontWeight: langue === 'fr' ? 700 : 500,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer'
-                }}
-              >
-                🇫🇷 Français
-              </button>
-              <button
-                type="button"
-                onClick={() => setLangue('ar')}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: langue === 'ar' ? '#0284c7' : 'rgba(255,255,255,0.06)',
-                  color: '#fff',
-                  fontWeight: langue === 'ar' ? 700 : 500,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer'
-                }}
-              >
-                🇹🇳 Arabe (عربي)
-              </button>
-              <button
-                type="button"
-                onClick={() => setLangue('en')}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: langue === 'en' ? '#0284c7' : 'rgba(255,255,255,0.06)',
-                  color: '#fff',
-                  fontWeight: langue === 'en' ? 700 : 500,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer'
-                }}
-              >
-                🇬🇧 English
-              </button>
-            </div>
-          </div>
-
-          {/* Aperçu Cadre Smartphone */}
-          <div>
-            <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
-              Aperçu du SMS transmis :
-            </label>
+          {transmittedQueue.length === 0 ? (
             <div style={{
+              padding: '40px 20px',
+              textAlign: 'center',
+              color: '#64748b',
+              fontSize: '0.88rem',
               background: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: '12px',
-              padding: '16px',
-              position: 'relative'
+              borderRadius: '10px',
+              border: '1px dashed #334155'
             }}>
-              <div style={{
-                background: '#1e293b',
-                borderRadius: '10px',
-                padding: '12px 14px',
-                borderLeft: '4px solid #38bdf8',
-                fontSize: '0.88rem',
-                lineHeight: 1.5,
-                color: '#f8fafc',
-                direction: langue === 'ar' ? 'rtl' : 'ltr',
-                textAlign: langue === 'ar' ? 'right' : 'left'
-              }}>
-                {messageText}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '0.72rem', color: '#64748b' }}>
-                <span>Longueur : {messageText.length} caractères</span>
-                <span>Segments : {Math.ceil(messageText.length / 160)} SMS</span>
+              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📅</div>
+              <strong>Aucun rendez-vous en attente de rappel SMS.</strong>
+              <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '6px' }}>
+                Lorsque vous fixez un rendez-vous dans l'Agenda de DocPocket Cab avec l'option rappel cochée, il apparaîtra automatiquement ici !
               </div>
             </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {transmittedQueue.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  style={{
+                    padding: '14px 18px',
+                    borderRadius: '10px',
+                    background: '#0f172a',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <strong style={{ color: '#38bdf8', fontSize: '0.95rem' }}>{item.nomPatient}</strong>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: item.smsSent ? 'rgba(34, 197, 94, 0.2)' : 'rgba(56, 189, 248, 0.15)',
+                        color: item.smsSent ? '#4ade80' : '#38bdf8',
+                        fontWeight: 600
+                      }}>
+                        {item.smsSent ? '✓ SMS Envoyé' : '⏳ Rappel 48h programmé'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '4px' }}>
+                      RDV : <strong>{item.dateRdv} à {item.heureRdv}</strong> • Portable : <strong>{item.telephone || 'Non renseigné'}</strong>
+                    </div>
+                    {item.notes && (
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                        Note : {item.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyQueuedSms(item)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      📋 Copier
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendQueuedSms(item)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)'
+                      }}
+                    >
+                      📱 Envoyer SMS
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CONTENU SOUS-ONGLET 2 : ENVOI MANUEL / PERSONNALISÉ */}
+      {activeSubTab === 'direct' && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '20px'
+        }}>
+          {/* Formulaire de configuration du rappel */}
+          <div style={{
+            background: '#131d36',
+            borderRadius: '12px',
+            padding: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                  Nom du Patient :
+                </label>
+                <input
+                  type="text"
+                  value={nom}
+                  onChange={(e) => setNom(e.target.value)}
+                  placeholder="Ex: Mohamed BEN SALAH"
+                  style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                  N° Téléphone Portable :
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={telephone}
+                  onChange={(e) => setTelephone(e.target.value)}
+                  placeholder="Ex: 98 123 456"
+                  style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '0.85rem', fontWeight: 600 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                  Date du Rendez-Vous :
+                </label>
+                <input
+                  type="date"
+                  value={dateRdv}
+                  onChange={(e) => setDateRdv(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                  Heure du Rendez-Vous :
+                </label>
+                <input
+                  type="time"
+                  value={heureRdv}
+                  onChange={(e) => setHeureRdv(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                Langue du Message SMS :
+              </label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setLangue('fr')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: langue === 'fr' ? '#0284c7' : 'rgba(255,255,255,0.06)',
+                    color: '#fff',
+                    fontWeight: langue === 'fr' ? 700 : 500,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🇫🇷 Français
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLangue('ar')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: langue === 'ar' ? '#0284c7' : 'rgba(255,255,255,0.06)',
+                    color: '#fff',
+                    fontWeight: langue === 'ar' ? 700 : 500,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🇹🇳 Arabe (عربي)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLangue('en')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: langue === 'en' ? '#0284c7' : 'rgba(255,255,255,0.06)',
+                    color: '#fff',
+                    fontWeight: langue === 'en' ? 700 : 500,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🇬🇧 English
+                </button>
+              </div>
+            </div>
+
+            {/* Aperçu Cadre Smartphone */}
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                Aperçu du SMS transmis :
+              </label>
+              <div style={{
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: '12px',
+                padding: '16px',
+                position: 'relative'
+              }}>
+                <div style={{
+                  background: '#1e293b',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  borderLeft: '4px solid #38bdf8',
+                  fontSize: '0.88rem',
+                  lineHeight: 1.5,
+                  color: '#f8fafc',
+                  direction: langue === 'ar' ? 'rtl' : 'ltr',
+                  textAlign: langue === 'ar' ? 'right' : 'left'
+                }}>
+                  {messageText}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '0.72rem', color: '#64748b' }}>
+                  <span>Longueur : {messageText.length} caractères</span>
+                  <span>Segments : {Math.ceil(messageText.length / 160)} SMS</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <button
+                type="button"
+                onClick={handleCopySms}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: 'rgba(255,255,255,0.08)',
+                  border: 'none',
+                  color: '#cbd5e1',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                📋 Copier SMS
+              </button>
+              <button
+                type="button"
+                onClick={handleSendViaMobileSms}
+                style={{
+                  flex: 1.4,
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)'
+                }}
+              >
+                📱 Envoyer par SMS
+              </button>
+            </div>
+          </div>
+
+          {/* Guide et informations de fonctionnement */}
+          <div style={{
+            background: '#1e293b',
+            borderRadius: '12px',
+            padding: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px'
+          }}>
+            <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: '#f8fafc' }}>
+              ℹ️ Fonctionnement de DocPocket SMS RDV
+            </h3>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+              <li><strong>Automatique :</strong> Tout rendez-vous fixé dans l'Agenda de DocPocket Cab est transmis en temps réel dans l'onglet « Rendez-vous Reçus ».</li>
+              <li><strong>Rappels 48h :</strong> La passerelle prépare les notifications à l'avance et alerte le patient à la date optimale.</li>
+              <li><strong>Zero surcoût :</strong> Utilise le forfait SMS inclus de votre smartphone Android / iOS via la liaison passerelle.</li>
+              <li><strong>Multilingue :</strong> Prise en charge native des textes en Arabe littéraire (avec orientation RTL), Français et Anglais.</li>
+            </ul>
           </div>
         </div>
+      )}
 
-        {/* Historique des SMS */}
+      {/* CONTENU SOUS-ONGLET 3 : JOURNAL DES SMS ENVOYÉS */}
+      {activeSubTab === 'history' && (
         <div style={{
           background: '#1e293b',
           borderRadius: '12px',
           padding: '20px',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          display: 'flex',
-          flexDirection: 'column'
+          border: '1px solid rgba(255, 255, 255, 0.08)'
         }}>
           <h3 style={{ margin: '0 0 12px', fontSize: '0.98rem', fontWeight: 700, color: '#f8fafc' }}>
             🕒 Journal des Rappels SMS ({history.length})
           </h3>
 
-          <div style={{ flex: 1, overflowY: 'auto', maxHeight: '380px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', maxHeight: '420px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {history.length === 0 ? (
               <div style={{ padding: '30px 10px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
                 Aucun rappel SMS envoyé récemment.
@@ -1852,12 +2521,17 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
                   <div style={{ color: '#cbd5e1', marginTop: '3px' }}>
                     RDV : <strong>{h.dateRdv} à {h.heureRdv}</strong> • Tél : {h.telephone}
                   </div>
+                  {h.source && (
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                      Source : {h.source}
+                    </div>
+                  )}
                 </div>
               ))
             )}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

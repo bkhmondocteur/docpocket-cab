@@ -964,6 +964,19 @@
             <div id="tabGenerator">
                 <div class="generator-card">
                     <form onsubmit="handleGenerate(event)">
+                        <!-- Choix du Produit Médical -->
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="font-size: 0.82rem; font-weight: 700; color: #38bdf8;">Produit Médical à Émettre :</label>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
+                                <button type="button" id="prodCabBtn" class="opt-btn active" onclick="selectProduct('DPCAB', this)" style="padding: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <span>🏥</span> DocPocket Cabinet (DPCAB)
+                                </button>
+                                <button type="button" id="prodSmsBtn" class="opt-btn" onclick="selectProduct('DPSMS', this)" style="padding: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <span>💬</span> DocPocket SMS RDV (DPSMS)
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="form-row">
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label for="clientNom">Nom de Famille du Médecin :</label>
@@ -1639,6 +1652,7 @@
         }
 
         // État de génération courante
+        let currentProduct = 'DPCAB'; // 'DPCAB' | 'DPSMS'
         let currentDuration = '365';
         let currentDevices = 3;
         let lastGeneratedKey = '';
@@ -1754,6 +1768,36 @@
             const payload = `${devCode}${cleanDate}${serial}`;
             const checksum = computeChecksum(payload);
             return `DPCAB-${devCode}-${cleanDate}-${serial}-${checksum}`;
+        }
+
+        const SMS_LICENSE_SALT = 'DOCPOCKET_SMS_RDV_SECURITY_SALT_2026';
+
+        function computeSmsChecksum(str) {
+            let hash = 5381;
+            const combined = str + SMS_LICENSE_SALT;
+            for (let i = 0; i < combined.length; i++) {
+                hash = ((hash << 5) + hash) + combined.charCodeAt(i);
+                hash = hash & 0xFFFFFFFF;
+            }
+            const hex = Math.abs(hash).toString(16).toUpperCase().padStart(4, '0');
+            return hex.slice(0, 4);
+        }
+
+        function buildSmsAlgorithmicKey(devices, expiryDateStr, customSerial = null) {
+            const devCode = String(devices || 3).padStart(2, '0').slice(0, 2);
+            const cleanDate = expiryDateStr.replace(/-/g, '');
+            const serial = customSerial || Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+            const payload = `${devCode}${cleanDate}${serial}`;
+            const checksum = computeSmsChecksum(payload);
+            return `DPSMS-${devCode}-${cleanDate}-${serial}-${checksum}`;
+        }
+
+        function selectProduct(prod, btn) {
+            currentProduct = prod;
+            const btnCab = document.getElementById('prodCabBtn');
+            const btnSms = document.getElementById('prodSmsBtn');
+            if (btnCab) btnCab.classList.toggle('active', prod === 'DPCAB');
+            if (btnSms) btnSms.classList.toggle('active', prod === 'DPSMS');
         }
 
         function calculateExpiryDate(durationVal) {
@@ -1961,13 +2005,20 @@
             // Calcul de la signature unique du médecin basée sur Nom + Prénom + N° Ordre
             const doctorSerial = computeDoctorSerial(nom, prenom, ordreId);
             const expiryDateStr = calculateExpiryDate(currentDuration);
-            const key = buildAlgorithmicKey(currentDevices, expiryDateStr, doctorSerial);
+            let key = '';
+            if (currentProduct === 'DPSMS') {
+                key = buildSmsAlgorithmicKey(currentDevices, expiryDateStr, doctorSerial);
+            } else {
+                key = buildAlgorithmicKey(currentDevices, expiryDateStr, doctorSerial);
+            }
             lastGeneratedKey = key;
 
             // Enregistrer dans le répertoire
             const registry = getRegistry();
             const newDoc = {
                 id: 'doc_' + Date.now(),
+                product: currentProduct,
+                productLabel: currentProduct === 'DPSMS' ? 'DocPocket SMS RDV' : 'DocPocket Cabinet',
                 name: client,
                 nom: nom,
                 prenom: prenom,
@@ -1986,7 +2037,7 @@
                 issuedAt: new Date().toISOString(),
                 lastSeenAt: null,
                 deviceInfo: null,
-                notes: 'Licence officielle émise via Keygen Pro'
+                notes: currentProduct === 'DPSMS' ? 'Licence DocPocket SMS RDV émise via Keygen Pro' : 'Licence officielle émise via Keygen Pro'
             };
 
             // Placer en tête de liste
@@ -1997,7 +2048,8 @@
             pushLicenseToFirebase(newDoc);
 
             // Affichage ticket
-            document.getElementById('resClientName').innerText = client;
+            const resProdLabel = currentProduct === 'DPSMS' ? 'DocPocket SMS RDV' : 'DocPocket Cabinet';
+            document.getElementById('resClientName').innerText = `${client} — ${resProdLabel}`;
             document.getElementById('resOrdre').innerText = ordreId ? ('N° ' + ordreId) : (specialite + (ville ? ' • ' + ville : ''));
             const elResSerial = document.getElementById('resSerial');
             if (elResSerial) elResSerial.innerText = doctorSerial;
@@ -2006,7 +2058,10 @@
             document.getElementById('resExpiry').innerText = currentDuration === 'lifetime' ? 'À vie (Illimitée)' : expiryDateStr;
 
             const noticeEl = document.getElementById('deviceNotice');
-            if (currentDevices === 1) {
+            if (currentProduct === 'DPSMS') {
+                noticeEl.className = 'device-info-badge info-multi';
+                noticeEl.innerHTML = `💬 <strong>DocPocket SMS RDV (${currentDevices} appareils) :</strong> Passerelle SMS et transmission automatique des RDV activées. Synchronisation automatique vers le mobile dès que le PC est activé. Signature : <code>${doctorSerial}</code>.`;
+            } else if (currentDevices === 1) {
                 noticeEl.className = 'device-info-badge info-pc-only';
                 noticeEl.innerHTML = '⚠️ <strong>Licence 1 Poste (PC uniquement) :</strong> Ce praticien ne pourra pas activer ni synchroniser de smartphone.';
             } else {
@@ -2116,6 +2171,11 @@
                     badgeHtml = `<span class="status-badge badge-active">🟢 Actif (${rem})</span>`;
                 }
 
+                const isSmsKey = (doc.key && doc.key.startsWith('DPSMS-')) || doc.product === 'DPSMS';
+                const prodBadge = isSmsKey
+                    ? `<span style="font-size: 0.72rem; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); padding: 2px 7px; border-radius: 6px; font-weight: 700;">💬 DocPocket SMS RDV</span>`
+                    : `<span style="font-size: 0.72rem; background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); padding: 2px 7px; border-radius: 6px; font-weight: 700;">🏥 DocPocket Cabinet</span>`;
+
                 const deviceTag = isSingleDev
                     ? `<span class="device-badge-tag tag-single-device">🖥️ 1 Poste (PC seul)</span>`
                     : `<span class="device-badge-tag tag-multi-device">📱🖥️ ${doc.maxDevices === 99 ? 'Illimité' : doc.maxDevices + ' Postes (PC + Mobiles)'}</span>`;
@@ -2170,7 +2230,10 @@
 
                         <div class="card-middle">
                             <div>
-                                <span style="font-size: 0.72rem; color: #94a3b8; display: block;">Clé de Licence Activée :</span>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+                                    <span style="font-size: 0.72rem; color: #94a3b8;">Clé de Licence Activée :</span>
+                                    ${prodBadge}
+                                </div>
                                 <span class="license-key-tag">${doc.key}</span>
                             </div>
                             <button type="button" class="action-btn btn-act-copy" onclick="copyToClipboard('${doc.key}', this)">
