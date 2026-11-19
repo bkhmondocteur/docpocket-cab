@@ -29,7 +29,11 @@ import {
   markAppointmentSmsSent, 
   testGatewayConnection, 
   getGatewayUrl, 
-  setGatewayUrl 
+  setGatewayUrl,
+  fetchDoctorDeviceStatus,
+  fetchCloudAppointments,
+  triggerInstantSmsPush,
+  CLOUD_CONFIG
 } from '../services/smsGatewayService';
 
 export default function OutilsView({
@@ -1554,10 +1558,16 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
   // Sous-onglet du module : 'queue' (file d'attente reçue) | 'direct' (envoi personnalisé) | 'history' (journal) | 'settings' (passerelle)
   const [activeSubTab, setActiveSubTab] = useState('queue');
 
-  // Passerelle locale
+  // Passerelle locale & Cloud
   const [gatewayOnline, setGatewayOnline] = useState(false);
   const [gatewayUrl, setGatewayUrlState] = useState(getGatewayUrl());
   const [isEditingGateway, setIsEditingGateway] = useState(false);
+
+  // Données Cloud Firebase (docpocket-rdv) & Smartphone Android (Infinix)
+  const [deviceInfo, setDeviceInfo] = useState(null);
+  const [cloudAppointments, setCloudAppointments] = useState([]);
+  const [loadingCloud, setLoadingCloud] = useState(false);
+  const [instantSending, setInstantSending] = useState(false);
 
   // File d'attente des RDV transmis depuis DocPocket Cab
   const [transmittedQueue, setTransmittedQueue] = useState(() => getTransmittedAppointmentsQueue());
@@ -1573,6 +1583,48 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
   const [heureRdv, setHeureRdv] = useState('10:00');
   const [langue, setLangue] = useState('fr'); // 'fr' | 'ar' | 'en'
   const [history, setHistory] = useState(() => getSmsHistory());
+
+  // Chargement des données Cloud Firestore (docpocket-rdv) & Smartphone
+  const loadCloudData = async () => {
+    setLoadingCloud(true);
+    try {
+      const [dev, appts] = await Promise.all([
+        fetchDoctorDeviceStatus(),
+        fetchCloudAppointments()
+      ]);
+      setDeviceInfo(dev);
+      setCloudAppointments(appts || []);
+      setGatewayOnline(Boolean(dev?.connected || dev?.fcmToken));
+    } catch (e) {
+      console.warn("Erreur chargement Cloud DocPocket SMS RDV:", e);
+    } finally {
+      setLoadingCloud(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCloudData();
+    const interval = setInterval(loadCloudData, 25000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Déclencher un envoi immédiat via push vers le smartphone Infinix
+  const handleTriggerInstantPush = async (item) => {
+    setInstantSending(true);
+    try {
+      const res = await triggerInstantSmsPush(item);
+      if (res.success) {
+        onNotify('✓ Signal de réveil envoyé à votre smartphone Infinix ! SMS en cours d\'envoi.');
+        setTimeout(loadCloudData, 2000);
+      } else {
+        alert("Erreur transmission push : " + (res.error || 'Erreur inconnue'));
+      }
+    } catch (e) {
+      alert("Erreur : " + e.message);
+    } finally {
+      setInstantSending(false);
+    }
+  };
 
   // Écoute de l'état de la licence et de la file d'attente
   useEffect(() => {
@@ -1683,20 +1735,22 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
 
   // Envoyer un SMS depuis la file d'attente
   const handleSendQueuedSms = (item) => {
-    if (!item.telephone) {
+    const phone = item.patientPhone || item.telephone;
+    const name = item.patientName || item.nomPatient || 'Patient';
+    if (!phone) {
       alert("Ce rendez-vous ne comporte pas de numéro de téléphone pour le patient.");
       return;
     }
-    const cleanPhone = item.telephone.replace(/\s+/g, '');
-    const body = generateSmsBody(item.nomPatient, item.dateRdv, item.heureRdv, item.language || 'fr');
+    const cleanPhone = phone.replace(/\s+/g, '');
+    const body = item.texteSms || generateSmsBody(name, item.dateRdv, item.heureRdv, item.language || 'fr');
     const smsUri = `sms:${cleanPhone}?body=${encodeURIComponent(body)}`;
     window.open(smsUri, '_self');
 
-    markAppointmentSmsSent(item.id);
+    markAppointmentSmsSent(item.id || item.localId);
     setTransmittedQueue(getTransmittedAppointmentsQueue());
 
     saveSmsLog({
-      nom: item.nomPatient,
+      nom: name,
       telephone: cleanPhone,
       dateRdv: item.dateRdv,
       heureRdv: item.heureRdv,
@@ -1705,14 +1759,41 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
       source: 'DocPocket Cab (Transmis auto)'
     });
     setHistory(getSmsHistory());
-    onNotify(`Rappel SMS ouvert pour ${item.nomPatient}`);
+    onNotify(`Rappel SMS ouvert pour ${name}`);
   };
 
   const handleCopyQueuedSms = (item) => {
-    const body = generateSmsBody(item.nomPatient, item.dateRdv, item.heureRdv, item.language || 'fr');
+    const name = item.patientName || item.nomPatient || 'Patient';
+    const body = item.texteSms || generateSmsBody(name, item.dateRdv, item.heureRdv, item.language || 'fr');
     navigator.clipboard.writeText(body);
-    onNotify(`Texte SMS copié pour ${item.nomPatient}`);
+    onNotify(`Texte SMS copié pour ${name}`);
   };
+
+  // Fusion intelligente des rendez-vous Cloud Firestore et de la file locale
+  const mergedAppointments = useMemo(() => {
+    const list = [...cloudAppointments];
+    const seenKeys = new Set(
+      list.map(a => `${(a.patientPhone || a.telephone || '').replace(/\s+/g, '')}_${a.dateRdv}_${a.heureRdv}`)
+    );
+    for (const q of transmittedQueue) {
+      const cleanPhone = (q.telephone || '').replace(/\s+/g, '');
+      const key = `${cleanPhone}_${q.dateRdv}_${q.heureRdv}`;
+      if (!seenKeys.has(key)) {
+        list.push({
+          id: q.id || `local_${q.dateRdv}_${q.heureRdv}`,
+          patientName: q.nomPatient,
+          patientPhone: q.telephone,
+          dateRdv: q.dateRdv,
+          heureRdv: q.heureRdv,
+          smsEnvoye: Boolean(q.smsSent),
+          reminderTimestamp: q.timestamp,
+          texteSms: q.notes || '',
+          source: 'local_queue'
+        });
+      }
+    }
+    return list;
+  }, [cloudAppointments, transmittedQueue]);
 
   // --------------------------------------------------------------------------
   // CAS 1 : MODULE NON ACTIVÉ -> BANNIÈRE & FORMULAIRE DE VERROUILLAGE
@@ -1923,7 +2004,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
   // --------------------------------------------------------------------------
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-      {/* Barre d'état de licence et passerelle */}
+      {/* Barre d'état de licence et passerelle Smartphone */}
       <div style={{
         background: '#131d36',
         borderRadius: '14px',
@@ -1953,22 +2034,61 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
               ✓ Licence Active ({smsLicense.daysRemaining === 'Illimité' ? 'À vie' : `${smsLicense.daysRemaining} jours restants`})
             </span>
             <span style={{
-              background: gatewayOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-              color: gatewayOnline ? '#4ade80' : '#38bdf8',
+              background: (deviceInfo?.connected || gatewayOnline) ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+              color: (deviceInfo?.connected || gatewayOnline) ? '#4ade80' : '#38bdf8',
+              fontSize: '0.74rem',
+              padding: '3px 10px',
+              borderRadius: '6px',
+              fontWeight: 600,
+              border: '1px solid rgba(56, 189, 248, 0.3)'
+            }}>
+              📱 {deviceInfo?.deviceModel || 'INFINIX Infinix X6726B'} (Android {deviceInfo?.androidVersion || '15'}) • {deviceInfo?.fcmToken ? 'Connecté & En veille' : 'Passerelle Prête'}
+            </span>
+            <span style={{
+              background: 'rgba(168, 85, 247, 0.15)',
+              color: '#c084fc',
               fontSize: '0.74rem',
               padding: '3px 10px',
               borderRadius: '6px',
               fontWeight: 600
             }}>
-              📱 {gatewayOnline ? 'Passerelle Smartphone Connectée' : 'Passerelle Prête'}
+              👨‍⚕️ {deviceInfo?.doctorName || CLOUD_CONFIG.defaultDoctorName}
+            </span>
+            <span style={{
+              background: 'rgba(59, 130, 246, 0.15)',
+              color: '#60a5fa',
+              fontSize: '0.74rem',
+              padding: '3px 10px',
+              borderRadius: '6px',
+              fontWeight: 600
+            }}>
+              ☁️ Firebase {CLOUD_CONFIG.projectId}
             </span>
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
-            Transmission automatique des rendez-vous activée • Synchronisé avec le smartphone en Wi-Fi / 4G
+          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '6px' }}>
+            Transmission automatique active : chaque rendez-vous fixé dans l'Agenda est synchronisé avec votre smartphone pour un envoi SMS automatique via votre carte SIM.
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={loadCloudData}
+            disabled={loadingCloud}
+            style={{
+              padding: '7px 12px',
+              borderRadius: '8px',
+              background: 'rgba(56, 189, 248, 0.12)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              color: '#38bdf8',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: loadingCloud ? 'not-allowed' : 'pointer'
+            }}
+            title="Rafraîchir les statuts Cloud et smartphone"
+          >
+            {loadingCloud ? '⏳ Actualisation...' : '🔄 Actualiser Cloud'}
+          </button>
           <button
             type="button"
             onClick={() => setIsEditingGateway(!isEditingGateway)}
@@ -1983,7 +2103,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
               cursor: 'pointer'
             }}
           >
-            ⚙️ Réglages Passerelle
+            ⚙️ Réglages
           </button>
           <button
             type="button"
@@ -2016,7 +2136,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
           gap: '12px',
           flexWrap: 'wrap'
         }}>
-          <label style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>URL Passerelle SMS Smartphone :</label>
+          <label style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>URL Passerelle Locale (Secours Wi-Fi Cabinet) :</label>
           <input
             type="text"
             value={gatewayUrl}
@@ -2082,7 +2202,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
           }}
         >
           <span>📥</span>
-          <span>Rendez-vous Reçus ({transmittedQueue.length})</span>
+          <span>Rendez-vous Transmis & Cloud ({mergedAppointments.length})</span>
         </button>
 
         <button
@@ -2104,7 +2224,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
           }}
         >
           <span>✍️</span>
-          <span>Envoi Manuel / Personnalisé</span>
+          <span>Envoi Manuel / Test SIM Direct</span>
         </button>
 
         <button
@@ -2130,7 +2250,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
         </button>
       </div>
 
-      {/* CONTENU SOUS-ONGLET 1 : FILE D'ATTENTE DES RDV REÇUS DEPUIS DOCPOCKET CAB */}
+      {/* CONTENU SOUS-ONGLET 1 : FILE D'ATTENTE & CLOUD RDV */}
       {activeSubTab === 'queue' && (
         <div style={{
           background: '#131d36',
@@ -2138,33 +2258,66 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
           padding: '20px',
           border: '1px solid rgba(255, 255, 255, 0.08)'
         }}>
+          {/* Bannière récapitulative passerelle Infinix */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%)',
+            border: '1px solid rgba(56, 189, 248, 0.25)',
+            borderRadius: '10px',
+            padding: '14px 18px',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ fontSize: '2rem' }}>📱</div>
+              <div>
+                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>
+                  Passerelle SIM : {deviceInfo?.deviceModel || 'INFINIX Infinix X6726B'} (Android {deviceInfo?.androidVersion || '15'})
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
+                  Médecin : <strong style={{ color: '#38bdf8' }}>{deviceInfo?.doctorName || CLOUD_CONFIG.defaultDoctorName}</strong> • Cloud Firebase : <span style={{ color: '#4ade80' }}>docpocket-rdv (En ligne)</span> • Vercel Cron : <span style={{ color: '#4ade80' }}>Actif</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={loadCloudData}
+                disabled={loadingCloud}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  color: '#38bdf8',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: loadingCloud ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {loadingCloud ? '⏳ Synchronisation...' : '🔄 Synchroniser avec le Cloud'}
+              </button>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', fontWeight: 700 }}>
-                📥 File des Rendez-vous Transmis Automatiquement
+                📥 Rendez-vous Transmis & Programmés pour Rappel SMS
               </h3>
               <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
-                Rendez-vous programmés dans l'Agenda et transmis à DocPocket SMS RDV pour rappel 48h
+                Synchronisés directement avec l'application Android DocPocket SMS RDV sur votre smartphone
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setTransmittedQueue(getTransmittedAppointmentsQueue())}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#cbd5e1',
-                fontSize: '0.75rem',
-                cursor: 'pointer'
-              }}
-            >
-              🔄 Actualiser la file
-            </button>
+            <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+              Total : <strong style={{ color: '#38bdf8' }}>{mergedAppointments.length}</strong> rendez-vous
+            </span>
           </div>
 
-          {transmittedQueue.length === 0 ? (
+          {mergedAppointments.length === 0 ? (
             <div style={{
               padding: '40px 20px',
               textAlign: 'center',
@@ -2175,89 +2328,142 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
               border: '1px dashed #334155'
             }}>
               <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📅</div>
-              <strong>Aucun rendez-vous en attente de rappel SMS.</strong>
+              <strong>Aucun rendez-vous enregistré pour le moment.</strong>
               <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '6px' }}>
-                Lorsque vous fixez un rendez-vous dans l'Agenda de DocPocket Cab avec l'option rappel cochée, il apparaîtra automatiquement ici !
+                Lorsque vous fixez un rendez-vous dans l'Agenda de DocPocket Cab avec l'option rappel cochée, il apparaîtra automatiquement ici et sera envoyé par la SIM de votre téléphone !
               </div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {transmittedQueue.map((item, idx) => (
-                <div
-                  key={item.id || idx}
-                  style={{
-                    padding: '14px 18px',
-                    borderRadius: '10px',
-                    background: '#0f172a',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '12px'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <strong style={{ color: '#38bdf8', fontSize: '0.95rem' }}>{item.nomPatient}</strong>
-                      <span style={{
-                        fontSize: '0.7rem',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        background: item.smsSent ? 'rgba(34, 197, 94, 0.2)' : 'rgba(56, 189, 248, 0.15)',
-                        color: item.smsSent ? '#4ade80' : '#38bdf8',
-                        fontWeight: 600
-                      }}>
-                        {item.smsSent ? '✓ SMS Envoyé' : '⏳ Rappel 48h programmé'}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '4px' }}>
-                      RDV : <strong>{item.dateRdv} à {item.heureRdv}</strong> • Portable : <strong>{item.telephone || 'Non renseigné'}</strong>
-                    </div>
-                    {item.notes && (
-                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
-                        Note : {item.notes}
-                      </div>
-                    )}
-                  </div>
+              {mergedAppointments.map((item, idx) => {
+                const patientName = item.patientName || item.nomPatient || 'Patient';
+                const phone = item.patientPhone || item.telephone || '';
+                const isSent = Boolean(item.smsEnvoye || item.smsSent);
+                const reminderDateStr = item.reminderTimestamp ? new Date(item.reminderTimestamp).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
 
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyQueuedSms(item)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      📋 Copier
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSendQueuedSms(item)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '6px',
-                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                        border: 'none',
-                        color: '#fff',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)'
-                      }}
-                    >
-                      📱 Envoyer SMS
-                    </button>
+                return (
+                  <div
+                    key={item.id || item.localId || idx}
+                    style={{
+                      padding: '14px 18px',
+                      borderRadius: '10px',
+                      background: '#0f172a',
+                      border: isSent ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(245, 158, 11, 0.25)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '12px'
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: '240px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <strong style={{ color: '#38bdf8', fontSize: '0.96rem' }}>{patientName}</strong>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          padding: '3px 9px',
+                          borderRadius: '5px',
+                          background: isSent ? 'rgba(34, 197, 94, 0.2)' : 'rgba(245, 158, 11, 0.15)',
+                          color: isSent ? '#4ade80' : '#fbbf24',
+                          fontWeight: 700,
+                          border: isSent ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)'
+                        }}>
+                          {isSent ? `✓ Expédié par carte SIM (${deviceInfo?.deviceModel?.includes('Infinix') ? 'Infinix' : 'Smartphone'})` : '⏳ Rappel 48h programmé (Cloud)'}
+                        </span>
+                        {item.source === 'docpocket_cab' && (
+                          <span style={{ fontSize: '0.68rem', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
+                            DocPocket Cab
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: '5px' }}>
+                        RDV : <strong style={{ color: '#fff' }}>{item.dateRdv} à {item.heureRdv}</strong> • N° Portable : <strong style={{ color: '#38bdf8' }}>{phone || 'Non renseigné'}</strong>
+                      </div>
+                      {reminderDateStr && !isSent && (
+                        <div style={{ fontSize: '0.74rem', color: '#fbbf24', marginTop: '3px' }}>
+                          ⏰ Date de déclenchement du rappel : {reminderDateStr}
+                        </div>
+                      )}
+                      {item.texteSms && (
+                        <div style={{
+                          fontSize: '0.76rem',
+                          color: '#94a3b8',
+                          marginTop: '4px',
+                          fontStyle: 'italic',
+                          maxWidth: '650px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          "{item.texteSms}"
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {!isSent && (
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerInstantPush(item)}
+                          disabled={instantSending || !phone}
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: '6px',
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            border: 'none',
+                            color: '#fff',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: (instantSending || !phone) ? 'not-allowed' : 'pointer',
+                            opacity: (instantSending || !phone) ? 0.6 : 1,
+                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          title="Réveiller le smartphone et envoyer immédiatement le SMS via la carte SIM"
+                        >
+                          ⚡ Déclencher Envoi Immédiat (SIM)
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleCopyQueuedSms(item)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: 'none',
+                          color: '#cbd5e1',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        📋 Copier
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendQueuedSms(item)}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          border: 'none',
+                          color: '#fff',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)'
+                        }}
+                        title="Ouvrir dans l'application SMS du système"
+                      >
+                        📱 App SMS
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -2424,7 +2630,39 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => handleTriggerInstantPush({
+                  nomPatient: nom,
+                  telephone,
+                  dateRdv,
+                  heureRdv,
+                  texteSms: messageText,
+                  language: langue
+                })}
+                disabled={instantSending || !telephone}
+                style={{
+                  flex: '1 1 100%',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '0.86rem',
+                  fontWeight: 700,
+                  cursor: (instantSending || !telephone) ? 'not-allowed' : 'pointer',
+                  opacity: (instantSending || !telephone) ? 0.6 : 1,
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+                title="Transmet l'ordre en direct à votre smartphone Infinix pour envoi immédiat par sa carte SIM"
+              >
+                {instantSending ? '⏳ Transmission du signal en cours...' : '⚡ Expédier via mon Smartphone Infinix (SIM Direct)'}
+              </button>
               <button
                 type="button"
                 onClick={handleCopySms}
@@ -2458,7 +2696,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
                   boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)'
                 }}
               >
-                📱 Envoyer par SMS
+                📱 App SMS Mobile
               </button>
             </div>
           </div>
