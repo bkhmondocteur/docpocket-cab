@@ -943,10 +943,10 @@ export default function ConsultationView({
                     />
                   </div>
 
-                  {/* 2. Examen ORL (Ajouté directement après le plan général) */}
+                  {/* 2. Sur le plan ORL (Ajouté directement après le plan général) */}
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', color: '#38bdf8', marginBottom: '4px', fontWeight: 600 }}>
-                      • Examen ORL :
+                      • Sur le plan ORL :
                     </label>
                     <input
                       type="text"

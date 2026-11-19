@@ -301,7 +301,7 @@ export function generateConsultationReport(patient, consultation) {
       ` : ''}
       ${consultation.examORL ? `
         <tr>
-          <td class="exam-label">• Examen ORL :</td>
+          <td class="exam-label">• Sur le plan ORL :</td>
           <td class="exam-content">${consultation.examORL}</td>
         </tr>
       ` : ''}
