@@ -4,7 +4,7 @@
 // & LE CLOUD FIREBASE (docpocket-rdv) + API VERCEL CRON
 // ==============================================================
 
-import { isSmsRdvActivated, getSmsLicenseStatus } from './smsLicenseService.js';
+import { isSmsRdvActivated, getSmsLicenseStatus, activateSmsLicense } from './smsLicenseService.js';
 
 // Configuration officielle du projet Cloud DocPocket SMS RDV
 export const CLOUD_CONFIG = {
@@ -54,6 +54,10 @@ export async function fetchDoctorDeviceStatus() {
       deviceModel: fields.deviceModel?.stringValue || 'Android Smartphone',
       androidVersion: fields.androidVersion?.stringValue || 'Android',
       fcmToken: fields.fcmToken?.stringValue || '',
+      isLicensed: fields.isLicensed?.booleanValue === true,
+      licenseActive: fields.licenseActive?.booleanValue === true,
+      licenseKey: fields.licenseKey?.stringValue || '',
+      licenseActivatedAt: fields.licenseActivatedAt?.integerValue ? Number(fields.licenseActivatedAt.integerValue) : null,
       lastUpdated: fields.lastUpdated?.integerValue ? Number(fields.lastUpdated.integerValue) : Date.now(),
       fetchedAt: Date.now()
     };
@@ -75,8 +79,71 @@ export async function fetchDoctorDeviceStatus() {
       deviceModel: 'INFINIX Infinix X6726B',
       androidVersion: '15',
       fcmToken: '',
+      isLicensed: false,
+      licenseActive: false,
+      licenseKey: '',
       lastUpdated: Date.now()
     };
+  }
+}
+
+/**
+ * Vérifie si un signal d'activation de licence est émis depuis le smartphone Android via Firebase Cloud.
+ * Si oui, active automatiquement l'outil DocPocket SMS RDV sur DocPocket Cab.
+ */
+export async function checkAndSyncCloudLicense() {
+  try {
+    const device = await fetchDoctorDeviceStatus();
+    if (!device) return { synced: false, reason: "Aucun appareil détecté" };
+
+    const isMobileLicensed = Boolean(device.isLicensed || device.licenseActive || (device.fcmToken && device.connected));
+    if (isMobileLicensed) {
+      const current = getSmsLicenseStatus();
+      if (!current.isLicensed) {
+        const key = device.licenseKey || 'DPSMS-PRO-2026';
+        const res = activateSmsLicense(key, device.doctorName, { fromMobile: true, source: 'firebase_signal' });
+        if (res.valid) {
+          console.log(`✓ Signal Firebase reçu : DocPocket SMS RDV activé sur ${device.deviceModel} -> Déverrouillage automatique DocPocket Cab`);
+          return {
+            synced: true,
+            autoActivated: true,
+            doctorName: device.doctorName,
+            deviceModel: device.deviceModel,
+            key
+          };
+        }
+      }
+      return { synced: true, alreadyActive: true, deviceModel: device.deviceModel };
+    }
+    return { synced: false, reason: "En attente du signal d'activation sur smartphone" };
+  } catch (err) {
+    return { synced: false, error: err.message };
+  }
+}
+
+/**
+ * Publie le signal d'activation de la licence vers Firebase Cloud pour interconnexion immédiate
+ */
+export async function broadcastLicenseToCloud(doctorName, key) {
+  try {
+    const url = `${CLOUD_CONFIG.firestoreBase}/devices/doctor_device?updateMask.fieldPaths=isLicensed&updateMask.fieldPaths=licenseActive&updateMask.fieldPaths=licenseKey&updateMask.fieldPaths=licenseActivatedAt&updateMask.fieldPaths=doctorName&key=${CLOUD_CONFIG.apiKey}`;
+    const payload = {
+      fields: {
+        isLicensed: { booleanValue: true },
+        licenseActive: { booleanValue: true },
+        licenseKey: { stringValue: key || 'DPSMS-PRO-2026' },
+        licenseActivatedAt: { integerValue: String(Date.now()) },
+        doctorName: { stringValue: doctorName || CLOUD_CONFIG.defaultDoctorName }
+      }
+    };
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
   }
 }
 

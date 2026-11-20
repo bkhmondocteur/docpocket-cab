@@ -56,6 +56,7 @@ import {
   firebaseFetch,
   isMobileDevice
 } from './services/firebaseBridgeSyncService';
+import { checkAndSyncCloudLicense } from './services/smsGatewayService';
 import './styles/global.css';
 
 // Formate le nom du praticien : enlève tout "Dr." ou "Dr" en double et affiche Prénom puis Nom
@@ -397,6 +398,20 @@ export default function App() {
       unsub();
       stopBridgeListener();
     };
+  }, []);
+
+  // Détection automatique en arrière-plan du signal d'activation DocPocket SMS RDV émis par le smartphone Android
+  useEffect(() => {
+    checkAndSyncCloudLicense().then((res) => {
+      if (res && res.autoActivated) {
+        setSyncBanner({
+          type: 'success',
+          message: `✓ Signal Firebase détecté : DocPocket SMS RDV activé sur votre smartphone (${res.deviceModel}) ! Outil activé automatiquement.`,
+          time: Date.now()
+        });
+        setTimeout(() => setSyncBanner(null), 7000);
+      }
+    }).catch(() => {});
   }, []);
 
   // Détection des doublons & fusion

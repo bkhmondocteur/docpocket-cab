@@ -22,7 +22,9 @@ import {
   isSmsRdvActivated, 
   getSmsLicenseStatus, 
   activateSmsLicense, 
-  deactivateSmsLicense 
+  deactivateSmsLicense,
+  generateMobileSmsTrialKey,
+  getLastGeneratedTrialKey
 } from '../services/smsLicenseService';
 import { 
   getTransmittedAppointmentsQueue, 
@@ -33,6 +35,8 @@ import {
   fetchDoctorDeviceStatus,
   fetchCloudAppointments,
   triggerInstantSmsPush,
+  checkAndSyncCloudLicense,
+  broadcastLicenseToCloud,
   CLOUD_CONFIG
 } from '../services/smsGatewayService';
 
@@ -1555,6 +1559,17 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
   const [licenseError, setLicenseError] = useState('');
   const [licenseSuccess, setLicenseSuccess] = useState('');
 
+  // Clé d'essai 2 mois & Signal Cloud Firebase
+  const [trialInfo, setTrialInfo] = useState(() => getLastGeneratedTrialKey());
+  const [doctorNameInput, setDoctorNameInput] = useState(() => {
+    const last = getLastGeneratedTrialKey();
+    if (last && last.doctorName) return last.doctorName;
+    return 'DR HAMED BEN KHALIFA';
+  });
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [checkingSignal, setCheckingSignal] = useState(false);
+  const [cloudSignalStatus, setCloudSignalStatus] = useState(null);
+
   // Sous-onglet du module : 'queue' (file d'attente reçue) | 'direct' (envoi personnalisé) | 'history' (journal) | 'settings' (passerelle)
   const [activeSubTab, setActiveSubTab] = useState('queue');
 
@@ -1588,13 +1603,18 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
   const loadCloudData = async () => {
     setLoadingCloud(true);
     try {
-      const [dev, appts] = await Promise.all([
+      const [dev, appts, syncRes] = await Promise.all([
         fetchDoctorDeviceStatus(),
-        fetchCloudAppointments()
+        fetchCloudAppointments(),
+        checkAndSyncCloudLicense()
       ]);
       setDeviceInfo(dev);
       setCloudAppointments(appts || []);
       setGatewayOnline(Boolean(dev?.connected || dev?.fcmToken));
+      if (syncRes?.autoActivated) {
+        setSmsLicense(getSmsLicenseStatus());
+        onNotify(`✓ Signal Firebase reçu : Activé sur ${syncRes.deviceModel} -> DocPocket Cab activé !`);
+      }
     } catch (e) {
       console.warn("Erreur chargement Cloud DocPocket SMS RDV:", e);
     } finally {
@@ -1689,6 +1709,57 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
       deactivateSmsLicense();
       setSmsLicense(getSmsLicenseStatus());
       onNotify('DocPocket SMS RDV désactivé');
+    }
+  };
+
+  // Générer la clé d'essai 2 mois pour smartphone Android
+  const handleGenerateTrial = () => {
+    const cleanName = (doctorNameInput || 'DR HAMED BEN KHALIFA').trim().toUpperCase();
+    const info = generateMobileSmsTrialKey(cleanName, 60);
+    setTrialInfo(info);
+    setCopiedKey(false);
+    onNotify('✓ Clé test 2 mois générée pour le smartphone Android !');
+  };
+
+  // Copier la clé pour le mobile
+  const handleCopyMobileKey = () => {
+    if (trialInfo?.mobileKey) {
+      navigator.clipboard.writeText(trialInfo.mobileKey);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 3000);
+      onNotify('✓ Clé mobile copiée dans le presse-papiers');
+    }
+  };
+
+  // Activer la clé test sur DocPocket Cab
+  const handleActivateTrialOnCab = () => {
+    if (trialInfo?.mobileKey) {
+      handleActivate(trialInfo.mobileKey);
+    } else {
+      handleActivate('DPSMS-TRIAL-2M');
+    }
+  };
+
+  // Vérifier manuellement le signal d'activation Cloud émis par le smartphone Android
+  const handleCheckSignal = async () => {
+    setCheckingSignal(true);
+    setCloudSignalStatus(null);
+    try {
+      const res = await checkAndSyncCloudLicense();
+      if (res?.autoActivated) {
+        setSmsLicense(getSmsLicenseStatus());
+        setLicenseSuccess(`✓ Signal Firebase détecté : Activé sur ${res.deviceModel || 'smartphone'} (${res.doctorName}) ! DocPocket Cab est maintenant activé.`);
+        onNotify(`✓ DocPocket SMS RDV activé via le signal Firebase de votre smartphone !`);
+      } else if (res?.alreadyActive) {
+        setCloudSignalStatus({ active: true, message: `✓ Passerelle active et synchronisée avec votre smartphone (${res.deviceModel || 'Infinix'})` });
+        onNotify(`✓ Signal vérifié : Passerelle active`);
+      } else {
+        setCloudSignalStatus({ active: false, message: res?.reason || "En attente du signal d'activation sur le smartphone." });
+      }
+    } catch (e) {
+      setCloudSignalStatus({ active: false, message: "Erreur vérification signal : " + e.message });
+    } finally {
+      setCheckingSignal(false);
     }
   };
 
@@ -1906,16 +1977,248 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
             </div>
           )}
 
+          {/* SECTION 1 : GÉNÉRATEUR DE CLÉ TEST (2 MOIS) POUR SMARTPHONE ANDROID & DOCPOCKET CAB */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.08) 0%, rgba(245, 158, 11, 0.03) 100%)',
+            border: '1.5px solid rgba(245, 158, 11, 0.35)',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.4rem' }}>🎁</span>
+                <strong style={{ color: '#fbbf24', fontSize: '1.02rem' }}>
+                  Générateur de Clé Test (2 Mois Gratuits)
+                </strong>
+              </div>
+              <span style={{ fontSize: '0.72rem', background: 'rgba(245, 158, 11, 0.2)', color: '#fde68a', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                Mobile Android & PC
+              </span>
+            </div>
+
+            <div style={{ fontSize: '0.84rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+              Générez une clé d'essai gratuit de <strong>60 jours (2 mois)</strong> que vous pouvez saisir directement sur l'application <strong>DocPocket SMS RDV</strong> installée sur votre smartphone.
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '220px' }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
+                  Nom du Médecin (tel que saisi sur votre smartphone) :
+                </label>
+                <input
+                  type="text"
+                  value={doctorNameInput}
+                  onChange={(e) => setDoctorNameInput(e.target.value)}
+                  placeholder="Ex: DR HAMED BEN KHALIFA"
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    background: '#1e293b',
+                    border: '1px solid #475569',
+                    color: '#f8fafc',
+                    fontSize: '0.9rem',
+                    fontWeight: 600
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleGenerateTrial}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.86rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 3px 10px rgba(217, 119, 6, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>🔑</span> Générer la Clé Test 2 Mois
+              </button>
+            </div>
+
+            {trialInfo && (
+              <div style={{
+                background: '#090d16',
+                border: '1px solid #38bdf8',
+                borderRadius: '10px',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                marginTop: '4px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Clé de Licence Test (2 Mois) :
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 600 }}>
+                    ✓ Valable 60 jours jusqu'au {trialInfo.expiryDate}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: '#1e293b',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #334155',
+                  gap: '10px',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ fontFamily: 'monospace', fontSize: '1.2rem', color: '#38bdf8', fontWeight: 700, letterSpacing: '1px' }}>
+                    {trialInfo.mobileKey}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={handleCopyMobileKey}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        background: copiedKey ? '#22c55e' : '#0284c7',
+                        color: '#fff',
+                        border: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {copiedKey ? '✓ Copié !' : '📋 Copier la clé'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleActivateTrialOnCab}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer'
+                      }}
+                      title="Active directement cette clé sur DocPocket Cab"
+                    >
+                      ⚡ Activer sur ce Cab
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.45, background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '6px' }}>
+                  <strong style={{ color: '#fbbf24' }}>Mode d'emploi Smartphone :</strong>
+                  <ol style={{ marginLeft: '16px', marginTop: '4px' }}>
+                    <li>Ouvrez l'application <strong>DocPocket SMS RDV</strong> sur votre smartphone.</li>
+                    <li>Saisissez le nom : <strong style={{ color: '#fff' }}>{trialInfo.doctorName}</strong></li>
+                    <li>Collez la clé : <strong style={{ color: '#38bdf8' }}>{trialInfo.mobileKey}</strong></li>
+                    <li>Touchez <strong>Activer</strong>. Dès l'activation, un signal Cloud activera aussi automatiquement ce poste !</li>
+                  </ol>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2 : SIGNAL CLOUD FIREBASE (ACTIVATION AUTOMATIQUE DEPUIS ANDROID) */}
+          <div style={{
+            background: 'rgba(56, 189, 248, 0.05)',
+            border: '1px solid rgba(56, 189, 248, 0.25)',
+            borderRadius: '12px',
+            padding: '18px',
+            marginBottom: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.2rem' }}>📡</span>
+                <strong style={{ color: '#38bdf8', fontSize: '0.95rem' }}>
+                  Signal Cloud Firebase (Détection Mobile)
+                </strong>
+              </div>
+              <button
+                type="button"
+                onClick={handleCheckSignal}
+                disabled={checkingSignal}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  background: checkingSignal ? '#475569' : 'rgba(56, 189, 248, 0.2)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: checkingSignal ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>{checkingSignal ? '⏳' : '🔄'}</span>
+                {checkingSignal ? 'Vérification...' : 'Vérifier signal Firebase'}
+              </button>
+            </div>
+
+            <div style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+              Dès que vous activez <strong>DocPocket SMS RDV sur votre smartphone</strong> (que ce soit avec la clé test ou une licence achetée), un signal est transmis en direct via Firebase pour déverrouiller automatiquement DocPocket Cab.
+            </div>
+
+            {deviceInfo && (
+              <div style={{
+                fontSize: '0.78rem',
+                color: '#94a3b8',
+                display: 'flex',
+                gap: '12px',
+                flexWrap: 'wrap',
+                background: 'rgba(0,0,0,0.25)',
+                padding: '8px 12px',
+                borderRadius: '6px'
+              }}>
+                <span>Terminal : <strong style={{ color: '#fff' }}>{deviceInfo.deviceModel}</strong></span>
+                <span>Médecin : <strong style={{ color: '#fff' }}>{deviceInfo.doctorName}</strong></span>
+                <span>Statut : <strong style={{ color: (deviceInfo.isLicensed || deviceInfo.fcmToken) ? '#4ade80' : '#fbbf24' }}>{(deviceInfo.isLicensed || deviceInfo.fcmToken) ? 'Connecté' : 'En attente'}</strong></span>
+              </div>
+            )}
+
+            {cloudSignalStatus && (
+              <div style={{
+                fontSize: '0.82rem',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: cloudSignalStatus.active ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                color: cloudSignalStatus.active ? '#86efac' : '#fde68a',
+                border: `1px solid ${cloudSignalStatus.active ? '#22c55e' : '#f59e0b'}`
+              }}>
+                {cloudSignalStatus.message}
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 3 : SAISIE MANUELLE DE LICENCE */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 600, marginBottom: '6px' }}>
-                Clé de Licence DocPocket SMS RDV (Format DPSMS-XX-YYYYMMDD-XXXX-XXXX) :
+                Ou saisissez manuellement votre clé de licence DocPocket SMS RDV :
               </label>
               <input
                 type="text"
                 value={licenseInput}
                 onChange={(e) => setLicenseInput(e.target.value.toUpperCase())}
-                placeholder="Ex: DPSMS-03-20271231-16F3-9E14 ou DPSMS-2026-TRIAL"
+                placeholder="Ex: XXXX-XXXX-XXXX-XXXX ou DPSMS-03-20271231-XXXX-XXXX"
                 style={{
                   width: '100%',
                   padding: '12px 14px',
@@ -1952,7 +2255,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
               </button>
               <button
                 type="button"
-                onClick={() => handleActivate('DPSMS-2026-TRIAL')}
+                onClick={() => handleActivate('DPSMS-TRIAL-2M')}
                 style={{
                   padding: '12px 18px',
                   borderRadius: '10px',
@@ -1963,9 +2266,9 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
                   fontWeight: 600,
                   cursor: 'pointer'
                 }}
-                title="Activer la version d'évaluation 30 jours sans engagement"
+                title="Activer la version d'évaluation 2 mois (60 jours) sans engagement"
               >
-                🎁 Essai Gratuit 30 Jours
+                🎁 Essai Gratuit 2 Mois
               </button>
             </div>
 
