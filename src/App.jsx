@@ -1594,32 +1594,6 @@ export default function App() {
                   : '0 0 6px rgba(34, 197, 94, 0.8)'
               }}></span>
             </div>
-
-            {activeTab === 'patients' && (
-              <button
-                type="button"
-                onClick={() => handleOpenAddModal()}
-                style={{
-                  padding: isMobile ? '6px 12px' : '9px 18px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: isMobile ? '0.8rem' : '0.9rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.45)',
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap'
-                }}
-                title="Créer un nouveau dossier patient"
-              >
-                <span>➕</span> {isMobile ? 'Patient' : 'Nouveau Patient'}
-              </button>
-            )}
           </div>
         </header>
 

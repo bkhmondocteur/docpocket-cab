@@ -193,7 +193,9 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
     const isDemo = isDemoDatabase(patients);
     const hasSyncedWithPc = localStorage.getItem('docpocket_has_synced_with_pc') === 'true';
 
-    if (isMobile && !hasSyncedWithPc && isDemo) {
+    const hasUserModifications = reason.includes('patient') || reason.includes('consultation') || reason.includes('rdv') || reason.includes('immediate');
+
+    if (isMobile && !hasSyncedWithPc && isDemo && !hasUserModifications) {
       console.log("ℹ️ Mobile en mode démonstration initiale : envoi pont suspendu pour préserver la base du PC.");
     } else {
       uploadBackupToBridge(backupPayload, reason).catch(e => {

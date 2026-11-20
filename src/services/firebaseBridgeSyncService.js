@@ -557,25 +557,6 @@ export async function uploadBackupToBridge(backupData, reason = 'auto_sync', for
           });
           return { skipped: true, reason: 'identical_backup', metadata: remoteMeta };
         }
-
-        // 2. La sauvegarde sur le pont provient de l'autre appareil et est PLUS RÉCENTE :
-        // L'appareil local ne doit pas l'écraser, mais au contraire récupérer la sauvegarde la plus récente !
-        if (remoteMeta.sourceDeviceId !== deviceId && remoteLatestTime > localFp.latestDataTime) {
-          notifyBridgeSubscribers({
-            type: 'SYNC_START',
-            message: `🔄 L'autre appareil (${remoteMeta.sourceDeviceName || 'Distant'}) possède une sauvegarde plus récente. Récupération...`
-          });
-          const { backupData: remoteData } = await downloadBackupFromBridge();
-          const report = await smartDeduplicatingMerge(remoteData);
-          localStorage.setItem(LAST_SYNC_KEY, String(remoteMeta.timestamp));
-          notifyBridgeSubscribers({
-            type: 'SYNC_COMPLETE',
-            report,
-            metadata: remoteMeta,
-            message: `✓ Synchronisation effectuée depuis l'appareil le plus récent (+${report.newPatients} patients, +${report.newConsultations} consult.) !`
-          });
-          return { skipped: true, reason: 'remote_newer_merged', report, metadata: remoteMeta };
-        }
       }
     } catch (checkErr) {
       // Si la vérification échoue (ex: premier envoi ou pont vide), on procède à l'envoi normal
@@ -1226,29 +1207,10 @@ async function handleIncomingSignal(signal) {
     return;
   }
 
-  // CAS 2 : Une sauvegarde plus récente est disponible sur le pont
+  // CAS 2 : Une sauvegarde plus récente est disponible sur le pont -> Intégration asynchrone immédiate en arrière-plan
   if (signal.type === 'NEW_BACKUP_AVAILABLE' && cfg.autoSync) {
     const lastSync = Number(localStorage.getItem(LAST_SYNC_KEY)) || 0;
     if (signal.timestamp > lastSync) {
-      // Si le médecin est en train d'utiliser l'application (saisie, consultation...),
-      // on suspend l'intégration pour ne jamais perturber la saisie ou faire perdre le focus
-      if (isUserActivelyUsingApp()) {
-        pendingIdleSignal = signal;
-        notifyBridgeSubscribers({
-          type: 'SYNC_PENDING_USER_BUSY',
-          signal,
-          message: 'Mise à jour prête : synchronisation mise en pause pendant votre utilisation...'
-        });
-        if (!idleCheckInterval) {
-          idleCheckInterval = setInterval(() => {
-            if (!isUserActivelyUsingApp()) {
-              executePendingSignalWhenIdle();
-            }
-          }, 2000);
-        }
-        return;
-      }
-
       await processIncomingBackupSignal(signal);
     }
   }

@@ -6,6 +6,7 @@ import {
   getAllPatients,
   addToWaitingRoom 
 } from '../services/patientStorage';
+import { triggerImmediateAutoBackup } from '../services/autoBackupService';
 import { 
   transmitAppointmentToMobile, 
   testGatewayConnection,
@@ -128,6 +129,23 @@ export default function AgendaView({
     setShowModal(true);
   };
 
+  const handleOpenEdit = (appt) => {
+    const p = patients.find(pat => String(pat.id) === String(appt.patientId));
+    setFormData({
+      id: appt.id,
+      patientId: String(appt.patientId || ''),
+      patientName: appt.patientName || (p ? `${p.nom} ${p.prenom}` : ''),
+      rdvDate: appt.rdvDate || selectedDate,
+      rdvTime: appt.rdvTime || '09:30',
+      object: appt.object || 'Consultation de suivi',
+      notes: appt.notes || ''
+    });
+    setSearchPatient(appt.patientName || '');
+    setSendSmsReminder(appt.sendSmsReminder !== false);
+    setSendImmediateSms(false);
+    setShowModal(true);
+  };
+
   const handleSendSmsNow = async (appt) => {
     if (!isSmsRdvActivated()) {
       alert("DocPocket SMS RDV n'est pas activé sur ce cabinet.\nActivez-le dans le menu Outils > DocPocket SMS RDV.");
@@ -174,6 +192,7 @@ export default function AgendaView({
       };
 
       await saveAppointment(savedData);
+      triggerImmediateAutoBackup('sauvegarde_rdv');
 
       // Si la date du rendez-vous est différente de la date visualisée, basculer sur la date du rendez-vous
       if (formData.rdvDate !== selectedDate) {
@@ -231,12 +250,13 @@ export default function AgendaView({
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Annuler ce rendez-vous ?")) {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer définitivement ce rendez-vous ?")) {
       try {
         await deleteAppointment(id);
         await loadData();
+        triggerImmediateAutoBackup('suppression_rdv');
       } catch (err) {
-        alert("Erreur annulation : " + err.message);
+        alert("Erreur lors de la suppression du rendez-vous : " + err.message);
       }
     }
   };
@@ -480,12 +500,13 @@ export default function AgendaView({
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '10px', marginTop: '4px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '10px', marginTop: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <button
+                    type="button"
                     onClick={() => handleCheckInToWaitingRoom(a)}
                     style={{
-                      flex: '1 1 140px',
-                      padding: '10px',
+                      flex: '1 1 calc(50% - 4px)',
+                      padding: '9px 12px',
                       borderRadius: '8px',
                       background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                       color: '#fff',
@@ -502,12 +523,59 @@ export default function AgendaView({
                     ⏱️ Salle d'Attente
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(a)}
+                    style={{
+                      flex: '1 1 calc(50% - 4px)',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      color: '#38bdf8',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                    title="Modifier ce rendez-vous"
+                  >
+                    ✏️ Modifier
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(a.id)}
+                    style={{
+                      flex: a.telephone ? '1 1 calc(50% - 4px)' : '1 1 100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                      color: '#f87171',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                    title="Supprimer définitivement ce rendez-vous"
+                  >
+                    🗑️ Supprimer
+                  </button>
+
                   {a.telephone && (
                     <button
+                      type="button"
                       onClick={() => handleSendSmsNow(a)}
                       style={{
-                        flex: '1 1 120px',
-                        padding: '10px',
+                        flex: '1 1 calc(50% - 4px)',
+                        padding: '9px 12px',
                         borderRadius: '8px',
                         background: 'rgba(34, 197, 94, 0.18)',
                         border: '1px solid rgba(34, 197, 94, 0.4)',
@@ -525,22 +593,6 @@ export default function AgendaView({
                       📱 SMS Direct
                     </button>
                   )}
-
-                  <button
-                    onClick={() => handleDelete(a.id)}
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      background: 'rgba(239, 68, 68, 0.15)',
-                      color: '#f87171',
-                      border: 'none',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                    title="Supprimer ce rendez-vous"
-                  >
-                    ✕
-                  </button>
                 </div>
               </div>
             ))
@@ -600,9 +652,52 @@ export default function AgendaView({
                       {a.notes || '-'}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(a)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            background: 'rgba(56, 189, 248, 0.15)',
+                            color: '#38bdf8',
+                            border: '1px solid rgba(56, 189, 248, 0.35)',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          title="Modifier ce rendez-vous"
+                        >
+                          ✏️ Modifier
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(a.id)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: '#f87171',
+                            border: '1px solid rgba(239, 68, 68, 0.35)',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          title="Supprimer définitivement ce rendez-vous"
+                        >
+                          🗑️ Supprimer
+                        </button>
+
                         {a.telephone && (
                           <button
+                            type="button"
                             onClick={() => handleSendSmsNow(a)}
                             style={{
                               padding: '6px 12px',
@@ -622,34 +717,25 @@ export default function AgendaView({
                             📱 SMS
                           </button>
                         )}
+
                         <button
+                          type="button"
                           onClick={() => handleCheckInToWaitingRoom(a)}
                           style={{
                             padding: '6px 12px',
                             borderRadius: '6px',
-                            background: 'rgba(56, 189, 248, 0.15)',
+                            background: 'rgba(56, 189, 248, 0.12)',
                             color: '#38bdf8',
-                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                            border: '1px solid rgba(56, 189, 248, 0.25)',
                             fontSize: '0.8rem',
                             fontWeight: 600,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
                           }}
                         >
                           ⏱️ Salle d'Attente
-                        </button>
-                        <button
-                          onClick={() => handleDelete(a.id)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            background: 'rgba(239, 68, 68, 0.15)',
-                            color: '#f87171',
-                            border: 'none',
-                            fontSize: '0.8rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ✕
                         </button>
                       </div>
                     </td>
@@ -701,7 +787,7 @@ export default function AgendaView({
               flexShrink: 0
             }}>
               <h2 style={{ margin: 0, fontSize: isMobile ? '1.1rem' : '1.2rem', color: '#38bdf8', fontWeight: 600 }}>
-                + Nouveau Rendez-vous
+                {formData.id ? '✏️ Modifier le Rendez-vous' : '+ Nouveau Rendez-vous'}
               </h2>
               <button 
                 type="button" 
@@ -1128,7 +1214,7 @@ export default function AgendaView({
                   </>
                 ) : (
                   <>
-                    <span>✓</span> Enregistrer le rendez-vous
+                    <span>✓</span> {formData.id ? 'Enregistrer les modifications' : 'Enregistrer le rendez-vous'}
                   </>
                 )}
               </button>
