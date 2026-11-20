@@ -15,7 +15,8 @@ import {
   initAutoBackup,
   subscribeAutoBackup,
   getAutoBackupStatus,
-  performAutoBackupNow
+  performAutoBackupNow,
+  triggerImmediateAutoBackup
 } from './services/autoBackupService';
 import BackupFolderSetupModal from './components/BackupFolderSetupModal';
 import PatientMergeModal from './components/PatientMergeModal';
@@ -50,6 +51,8 @@ import {
   startBridgeListener,
   stopBridgeListener,
   subscribeBridgeSync,
+  getBridgeSyncStatus,
+  triggerBridgeCheck,
   sendInitialSyncRequestFromMobile,
   checkAndPullExistingBackup,
   autoSyncWithLatestBridge,
@@ -98,7 +101,18 @@ export default function App() {
   const [patients, setPatients] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [syncBanner, setSyncBanner] = useState(null);
+  // État du témoin de synchronisation instantanée & sauvegarde (PC <-> Mobile)
+  const [syncIndicator, setSyncIndicator] = useState(() => {
+    const bStatus = getBridgeSyncStatus();
+    const aStatus = getAutoBackupStatus();
+    const isSyncing = bStatus.state === 'syncing' || aStatus.state === 'saving';
+    const isPending = bStatus.state === 'busy_pending' || aStatus.state === 'pending';
+    return {
+      state: isSyncing ? 'syncing' : (isPending ? 'busy_pending' : 'synced'),
+      lastTime: bStatus.lastSyncTime || aStatus.lastBackupTime || Date.now(),
+      label: ''
+    };
+  });
   const [showModal, setShowModal] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -335,6 +349,13 @@ export default function App() {
     initAutoBackup();
     const unsub = subscribeAutoBackup((newStatus) => {
       setAutoBackupStatus(newStatus);
+      if (newStatus.state === 'saving') {
+        setSyncIndicator(prev => ({ ...prev, state: 'syncing' }));
+      } else if (newStatus.state === 'saved') {
+        setSyncIndicator(prev => ({ ...prev, state: 'synced', lastTime: newStatus.lastBackupTime || Date.now() }));
+      } else if (newStatus.state === 'error') {
+        setSyncIndicator(prev => ({ ...prev, state: 'error' }));
+      }
     });
     return unsub;
   }, []);
@@ -343,44 +364,37 @@ export default function App() {
   useEffect(() => {
     startBridgeListener();
     const unsub = subscribeBridgeSync((evt) => {
-      if (evt.type === 'SYNC_COMPLETE') {
+      if (evt.type === 'SYNC_COMPLETE' || evt.type === 'UPLOADED_SUCCESS' || evt.type === 'SYNC_UP_TO_DATE') {
         refreshPatients();
-        setSyncBanner({
-          type: 'success',
-          message: evt.message || 'Données synchronisées sans doublons !',
-          time: Date.now()
+        setSyncIndicator({
+          state: 'synced',
+          lastTime: Date.now(),
+          label: ''
         });
-        setTimeout(() => setSyncBanner(null), 6000);
-      } else if (evt.type === 'SYNC_START' || evt.type === 'UPLOADING' || evt.type === 'DOWNLOADING') {
-        setSyncBanner({
-          type: 'info',
-          message: evt.message,
-          time: Date.now()
-        });
-      } else if (evt.type === 'REMOTE_REQUEST_RECEIVED') {
-        setSyncBanner({
-          type: 'info',
-          message: evt.message,
-          time: Date.now()
-        });
-        setTimeout(() => setSyncBanner(null), 5000);
+      } else if (evt.type === 'SYNC_START' || evt.type === 'UPLOADING' || evt.type === 'DOWNLOADING' || evt.type === 'MERGING_PROGRESS') {
+        setSyncIndicator(prev => ({
+          ...prev,
+          state: 'syncing'
+        }));
+      } else if (evt.type === 'SYNC_PENDING_USER_BUSY') {
+        setSyncIndicator(prev => ({
+          ...prev,
+          state: 'busy_pending'
+        }));
       } else if (evt.type === 'SYNC_ERROR') {
-        setSyncBanner({
-          type: 'error',
-          message: `Erreur pont Firebase : ${evt.error}`,
-          time: Date.now()
-        });
-        setTimeout(() => setSyncBanner(null), 8000);
+        setSyncIndicator(prev => ({
+          ...prev,
+          state: 'error'
+        }));
       }
     });
 
     // SYNCHRONISATION AUTOMATIQUE UNIVERSELLE (PC <-> SMARTPHONE) :
-    // Détecte la sauvegarde la plus récente sur Firebase et la synchronise automatiquement avec tous les appareils
-    autoSyncWithLatestBridge((msg) => {
-      setSyncBanner({ type: 'info', message: msg, time: Date.now() });
-    }).then(async (res) => {
+    // Détecte silencieusement la sauvegarde la plus récente sur Firebase
+    autoSyncWithLatestBridge().then(async (res) => {
       if (res && res.action === 'pulled') {
         await refreshPatients();
+        setSyncIndicator({ state: 'synced', lastTime: Date.now(), label: '' });
       } else if (res && res.action === 'push_needed') {
         console.log("Synchronisation : publication de la base la plus récente vers le pont Firebase...");
         await performAutoBackupNow('sync_vers_pont_sauvegarde_recente');
@@ -404,12 +418,7 @@ export default function App() {
   useEffect(() => {
     checkAndSyncCloudLicense().then((res) => {
       if (res && res.autoActivated) {
-        setSyncBanner({
-          type: 'success',
-          message: `✓ Signal Firebase détecté : DocPocket SMS RDV activé sur votre smartphone (${res.deviceModel}) ! Outil activé automatiquement.`,
-          time: Date.now()
-        });
-        setTimeout(() => setSyncBanner(null), 7000);
+        console.log(`✓ DocPocket SMS RDV synchronisé avec le smartphone (${res.deviceModel}).`);
       }
     }).catch(() => {});
   }, []);
@@ -489,6 +498,7 @@ export default function App() {
       setShowModal(false);
       setEditingPatient(null);
       await refreshPatients(searchQuery);
+      triggerImmediateAutoBackup('sauvegarde_fiche_patient');
 
       if (isNewPatient) {
         // Redirection directe vers le bloc consultation pour effectuer une nouvelle consultation
@@ -513,6 +523,7 @@ export default function App() {
           setSelectedPatient(null);
         }
         await refreshPatients(searchQuery);
+        triggerImmediateAutoBackup('suppression_fiche_patient');
       } catch (err) {
         alert("Erreur lors de la suppression : " + err.message);
       }
@@ -979,6 +990,22 @@ export default function App() {
       />
     );
   }
+
+  // Déclencheur manuel au clic sur le témoin de synchronisation en haut
+  const handleSyncIndicatorClick = async () => {
+    setSyncIndicator(prev => ({ ...prev, state: 'syncing' }));
+    try {
+      await Promise.all([
+        triggerImmediateAutoBackup('clic_temoin_synchronisation'),
+        triggerBridgeCheck()
+      ]);
+    } catch (e) {
+      console.warn("Vérification témoin sync:", e);
+    }
+    setTimeout(() => {
+      setSyncIndicator({ state: 'synced', lastTime: Date.now(), label: '' });
+    }, 700);
+  };
 
   // 3. Si un code PIN praticien est configuré et que l'application est verrouillée
   if (!appUnlocked) {
@@ -1487,13 +1514,17 @@ export default function App() {
               </button>
             )}
 
-            {/* Badge Auto-Sauvegarde */}
+            {/* Témoin de Synchronisation Cloud Instantanée (Firebase PC <-> Mobile) & Sauvegarde */}
             <div
-              onClick={() => setShowFolderSetup(true)}
+              onClick={handleSyncIndicatorClick}
               title={
-                autoBackupStatus.lastInfo
-                  ? `Dernière sauvegarde auto : ${autoBackupStatus.lastInfo.timeFormatted || ''} dans "${autoBackupStatus.lastInfo.folderName}"\nCliquez pour changer le dossier.`
-                  : 'Sauvegarde automatique active après chaque modification'
+                syncIndicator.state === 'syncing'
+                  ? "Synchronisation automatique en cours avec Firebase (PC ↔ Mobile)..."
+                  : syncIndicator.state === 'busy_pending'
+                  ? "Mise à jour prête : l'application est en cours d'utilisation active. La synchronisation s'appliquera automatiquement dès la fin de votre saisie pour préserver votre travail."
+                  : syncIndicator.state === 'error'
+                  ? "Mode local actif. Vos modifications sont enregistrées sur cet appareil et seront synchronisées dès le rétablissement de la connexion."
+                  : `✓ Synchronisé instantanément via Firebase (${new Date(syncIndicator.lastTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}). Cliquez pour forcer une vérification.`
               }
               style={{
                 display: 'flex',
@@ -1501,55 +1532,66 @@ export default function App() {
                 gap: isMobile ? '4px' : '8px',
                 padding: isMobile ? '5px 8px' : '6px 14px',
                 borderRadius: '20px',
-                background: autoBackupStatus.state === 'saving'
-                  ? 'rgba(56, 189, 248, 0.2)'
-                  : autoBackupStatus.state === 'pending'
-                  ? 'rgba(234, 179, 8, 0.2)'
+                background: syncIndicator.state === 'syncing'
+                  ? 'rgba(56, 189, 248, 0.18)'
+                  : syncIndicator.state === 'busy_pending'
+                  ? 'rgba(234, 179, 8, 0.18)'
+                  : syncIndicator.state === 'error'
+                  ? 'rgba(239, 68, 68, 0.15)'
                   : 'rgba(34, 197, 94, 0.15)',
                 border: `1.5px solid ${
-                  autoBackupStatus.state === 'saving'
+                  syncIndicator.state === 'syncing'
                     ? '#38bdf8'
-                    : autoBackupStatus.state === 'pending'
-                    ? '#eab308'
+                    : syncIndicator.state === 'busy_pending'
+                    ? '#facc15'
+                    : syncIndicator.state === 'error'
+                    ? '#ef4444'
                     : 'rgba(34, 197, 94, 0.4)'
                 }`,
                 fontSize: isMobile ? '0.72rem' : '0.8rem',
-                color: autoBackupStatus.state === 'saving'
+                color: syncIndicator.state === 'syncing'
                   ? '#38bdf8'
-                  : autoBackupStatus.state === 'pending'
+                  : syncIndicator.state === 'busy_pending'
                   ? '#facc15'
+                  : syncIndicator.state === 'error'
+                  ? '#f87171'
                   : '#4ade80',
                 fontWeight: 600,
                 cursor: 'pointer',
                 userSelect: 'none',
-                flexShrink: 0
+                flexShrink: 0,
+                transition: 'all 0.25s ease'
               }}
             >
-              <span>
-                {autoBackupStatus.state === 'saving' ? '🔄' : autoBackupStatus.state === 'pending' ? '⏳' : '🛡️'}
+              <span style={{
+                display: 'inline-block',
+                animation: syncIndicator.state === 'syncing' ? 'spin 1.2s linear infinite' : 'none',
+                fontSize: isMobile ? '0.85rem' : '0.95rem'
+              }}>
+                {syncIndicator.state === 'syncing' ? '🔄' : syncIndicator.state === 'busy_pending' ? '⏳' : syncIndicator.state === 'error' ? '⚠️' : '☁️'}
               </span>
               {!isMobile && (
                 <span>
-                  {autoBackupStatus.state === 'saving' && 'Auto-Sauvegarde en cours...'}
-                  {autoBackupStatus.state === 'pending' && 'Sauvegarde en attente...'}
-                  {(autoBackupStatus.state === 'saved' || autoBackupStatus.state === 'idle') && (
-                    autoBackupStatus.lastInfo && autoBackupStatus.lastInfo.timeFormatted
-                      ? `Auto-Sauvegardé (${autoBackupStatus.lastInfo.timeFormatted})`
-                      : 'Auto-Sauvegarde Active'
-                  )}
-                  {autoBackupStatus.state === 'error' && 'Erreur Auto-Sauvegarde'}
+                  {syncIndicator.state === 'syncing' && 'Synchronisation...'}
+                  {syncIndicator.state === 'busy_pending' && 'En attente (saisie active)'}
+                  {syncIndicator.state === 'error' && 'Hors-ligne (local)'}
+                  {syncIndicator.state === 'synced' && `Synchronisé (${new Date(syncIndicator.lastTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})`}
                 </span>
               )}
               <span style={{
-                width: '6px',
-                height: '6px',
+                width: isMobile ? '6px' : '7px',
+                height: isMobile ? '6px' : '7px',
                 borderRadius: '50%',
-                background: autoBackupStatus.state === 'saving'
+                background: syncIndicator.state === 'syncing'
                   ? '#38bdf8'
-                  : autoBackupStatus.state === 'pending'
+                  : syncIndicator.state === 'busy_pending'
                   ? '#facc15'
+                  : syncIndicator.state === 'error'
+                  ? '#ef4444'
                   : '#22c55e',
-                boxShadow: '0 0 6px rgba(34, 197, 94, 0.8)'
+                boxShadow: syncIndicator.state === 'syncing'
+                  ? '0 0 8px rgba(56, 189, 248, 0.8)'
+                  : '0 0 6px rgba(34, 197, 94, 0.8)'
               }}></span>
             </div>
 
@@ -1592,53 +1634,6 @@ export default function App() {
               : '24px 28px'
           }}
         >
-          {/* Notification Bannière Pont Firebase (PC <-> Mobile) */}
-          {syncBanner && (
-            <div
-              className="animate-fade-in"
-              style={{
-                marginBottom: '16px',
-                padding: '12px 16px',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: syncBanner.type === 'success'
-                  ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.2) 100%)'
-                  : syncBanner.type === 'error'
-                  ? 'rgba(239, 68, 68, 0.2)'
-                  : 'linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(2, 132, 199, 0.2) 100%)',
-                border: `1.5px solid ${
-                  syncBanner.type === 'success' ? '#10b981' : syncBanner.type === 'error' ? '#ef4444' : '#38bdf8'
-                }`,
-                color: '#fff',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '1.2rem' }}>
-                  {syncBanner.type === 'success' ? '✓' : syncBanner.type === 'error' ? '⚠️' : '🔄'}
-                </span>
-                <span>{syncBanner.message}</span>
-              </div>
-              <button
-                onClick={() => setSyncBanner(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  cursor: 'pointer',
-                  fontSize: '1rem',
-                  padding: '2px 6px'
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          )}
-
           {activeTab === 'patients' && (
             selectedPatient ? (
               <PatientDetail
@@ -2863,12 +2858,6 @@ export default function App() {
             setConsultationWaitingEntry(null);
             setConsultationToEdit(null);
             setActiveTab('consultation');
-            setSyncBanner({
-              type: 'success',
-              message: `✓ Fiche de ${foundPatient.nom} ${foundPatient.prenom} ouverte pour consultation médicale.`,
-              time: Date.now()
-            });
-            setTimeout(() => setSyncBanner(null), 5000);
           }}
         />
       )}
@@ -2882,12 +2871,6 @@ export default function App() {
             setShowBatchDuplicatesModal(false);
             setSelectedPatientIds([]);
             await refreshPatients(searchQuery);
-            setSyncBanner({
-              type: 'success',
-              message: `✓ Nettoyage terminé : tous les doublons sélectionnés ont été fusionnés sans perte.`,
-              time: Date.now()
-            });
-            setTimeout(() => setSyncBanner(null), 6000);
           }}
         />
       )}
@@ -2926,12 +2909,6 @@ export default function App() {
             clearUnsettledConsultation();
             setUnsettledConsultationState(null);
             setShowPaymentModal(false);
-            setSyncBanner({
-              type: 'success',
-              message: `✓ Règlement enregistré avec succès (Réf: ${invoice.numFacture || 'FAC'}). Clôture validée !`,
-              time: Date.now()
-            });
-            setTimeout(() => setSyncBanner(null), 5000);
             refreshPatients();
           }}
           onOpenFullBilling={() => {

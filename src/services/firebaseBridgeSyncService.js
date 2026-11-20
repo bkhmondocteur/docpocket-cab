@@ -28,7 +28,8 @@ const DEVICE_ID_KEY = 'docpocket_bridge_device_id';
 // GESTION DU REPOS & INACTIVITÉ UTILISATEUR (SMART IDLE SYNC)
 // ==============================================================
 let lastUserInteractionTime = Date.now();
-const USER_ACTIVE_THRESHOLD_MS = 25000; // 25 secondes d'inactivité avant d'exécuter la synchronisation
+// 10 secondes d'inactivité humaine requises pour autoriser une synchronisation entrante
+const USER_ACTIVE_THRESHOLD_MS = 10000;
 let pendingIdleSignal = null;
 let idleCheckInterval = null;
 
@@ -36,7 +37,7 @@ if (typeof window !== 'undefined') {
   const recordActivity = () => {
     lastUserInteractionTime = Date.now();
   };
-  ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+  ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click', 'input', 'pointerdown'].forEach(evt => {
     window.addEventListener(evt, recordActivity, { passive: true });
   });
 
@@ -50,10 +51,43 @@ if (typeof window !== 'undefined') {
   }
 }
 
+/**
+ * Vérifie formellement si l'utilisateur est activement en train d'utiliser l'application.
+ * En AUCUN CAS la synchronisation entrante ne doit s'effectuer si cette fonction retourne true,
+ * afin de ne jamais faire perdre le focus, perturber la saisie ou écraser un formulaire en cours.
+ */
 export function isUserActivelyUsingApp() {
-  if (typeof document !== 'undefined' && document.hidden) {
-    return false; // Application en arrière-plan
+  if (typeof document !== 'undefined') {
+    // Si l'application est en arrière-plan, l'utilisateur n'est pas en train d'interagir
+    if (document.hidden) {
+      return false;
+    }
+
+    // 1. Focus actif dans un champ de saisie (texte, zone de diagnostic, ordonnance, etc.)
+    const active = document.activeElement;
+    if (active && (
+      active.tagName === 'INPUT' ||
+      active.tagName === 'TEXTAREA' ||
+      active.tagName === 'SELECT' ||
+      active.isContentEditable ||
+      active.closest?.('.modal-overlay') ||
+      active.closest?.('[role="dialog"]')
+    )) {
+      return true; // Saisie active en cours !
+    }
+
+    // 2. Modals critiques d'édition ou de consultation ouverts
+    if (document.querySelector('.modal-overlay, [role="dialog"], .consult-active')) {
+      return true;
+    }
+
+    // 3. Indicateur global d'opération en cours
+    if (typeof window !== 'undefined' && window.__docpocket_user_busy) {
+      return true;
+    }
   }
+
+  // 4. Inactivité récente : l'utilisateur a cliqué, scrollé ou tapé dans les 10 dernières secondes
   return (Date.now() - lastUserInteractionTime) < USER_ACTIVE_THRESHOLD_MS;
 }
 
@@ -1050,12 +1084,42 @@ let pollTimer = null;
 const bridgeSubscribers = new Set();
 let isHandlingSync = false;
 
+let currentBridgeStatus = {
+  state: 'synced', // 'synced' | 'syncing' | 'busy_pending' | 'offline' | 'error'
+  lastSyncTime: Number(localStorage.getItem(LAST_SYNC_KEY)) || null,
+  message: ''
+};
+
+export function getBridgeSyncStatus() {
+  return { ...currentBridgeStatus };
+}
+
 export function subscribeBridgeSync(callback) {
   bridgeSubscribers.add(callback);
+  // Émission immédiate de l'état actuel pour réactivité instantanée
+  try {
+    callback({ type: 'STATUS_INIT', ...currentBridgeStatus });
+  } catch (e) {}
   return () => bridgeSubscribers.delete(callback);
 }
 
 function notifyBridgeSubscribers(event) {
+  // Mettre à jour l'état interne de synchronisation
+  if (event.type === 'SYNC_START' || event.type === 'UPLOADING' || event.type === 'DOWNLOADING' || event.type === 'MERGING_PROGRESS') {
+    currentBridgeStatus.state = 'syncing';
+    currentBridgeStatus.message = event.message || 'Synchronisation en cours...';
+  } else if (event.type === 'SYNC_COMPLETE' || event.type === 'UPLOADED_SUCCESS' || event.type === 'SYNC_UP_TO_DATE') {
+    currentBridgeStatus.state = 'synced';
+    currentBridgeStatus.lastSyncTime = Date.now();
+    currentBridgeStatus.message = event.message || 'Synchronisé';
+  } else if (event.type === 'SYNC_PENDING_USER_BUSY') {
+    currentBridgeStatus.state = 'busy_pending';
+    currentBridgeStatus.message = 'Mise à jour en attente (application en cours d\'utilisation)';
+  } else if (event.type === 'SYNC_ERROR') {
+    currentBridgeStatus.state = 'error';
+    currentBridgeStatus.message = event.error || 'Erreur synchronisation';
+  }
+
   for (const cb of bridgeSubscribers) {
     try {
       cb(event);
@@ -1166,16 +1230,21 @@ async function handleIncomingSignal(signal) {
   if (signal.type === 'NEW_BACKUP_AVAILABLE' && cfg.autoSync) {
     const lastSync = Number(localStorage.getItem(LAST_SYNC_KEY)) || 0;
     if (signal.timestamp > lastSync) {
-      // Si le médecin est en train d'utiliser l'application, on attend qu'il fasse une pause (inactivité)
-      // pour que l'application reste instantanée et jamais ralentie
+      // Si le médecin est en train d'utiliser l'application (saisie, consultation...),
+      // on suspend l'intégration pour ne jamais perturber la saisie ou faire perdre le focus
       if (isUserActivelyUsingApp()) {
         pendingIdleSignal = signal;
+        notifyBridgeSubscribers({
+          type: 'SYNC_PENDING_USER_BUSY',
+          signal,
+          message: 'Mise à jour prête : synchronisation mise en pause pendant votre utilisation...'
+        });
         if (!idleCheckInterval) {
           idleCheckInterval = setInterval(() => {
             if (!isUserActivelyUsingApp()) {
               executePendingSignalWhenIdle();
             }
-          }, 4000);
+          }, 2000);
         }
         return;
       }
@@ -1253,6 +1322,29 @@ async function checkBridgeSignal() {
   }
 }
 
+function onWindowWakeup() {
+  checkBridgeSignal();
+}
+
+function onVisibilityChange() {
+  if (typeof document !== 'undefined') {
+    if (document.hidden && pendingIdleSignal) {
+      // Lorsque l'application passe en arrière-plan, exécuter immédiatement les signaux en attente
+      executePendingSignalWhenIdle();
+    } else if (!document.hidden) {
+      // Dès que l'utilisateur réactive l'application, vérifier immédiatement les mises à jour
+      checkBridgeSignal();
+    }
+  }
+}
+
+/**
+ * Force une vérification immédiate du pont Firebase (appelée par le témoin au clic)
+ */
+export function triggerBridgeCheck() {
+  return checkBridgeSignal();
+}
+
 /**
  * Démarre l'écouteur du pont Firebase
  */
@@ -1291,8 +1383,17 @@ export function startBridgeListener() {
     // Fallback polling
   }
 
-  // 3. Polling de secours régulier (toutes les 15s) pour garantir la réception
-  pollTimer = setInterval(checkBridgeSignal, 15000);
+  // 3. Polling de secours rapide (toutes les 5 secondes) pour une réactivité quasi-instantanée
+  pollTimer = setInterval(checkBridgeSignal, 5000);
+
+  // 4. Écouteurs de réveil instantané (déverrouillage téléphone, focus onglet, retour en ligne)
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', onWindowWakeup);
+    window.addEventListener('online', onWindowWakeup);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
+  }
 }
 
 export function stopBridgeListener() {
@@ -1303,6 +1404,13 @@ export function stopBridgeListener() {
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', onWindowWakeup);
+    window.removeEventListener('online', onWindowWakeup);
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    }
   }
 }
 

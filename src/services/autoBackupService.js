@@ -23,8 +23,8 @@ const AUTOBACKUP_ENABLED_KEY = 'docpocket_autobackup_enabled';
 const AUTOBACKUP_DAILY_KEY = 'docpocket_autobackup_daily';
 const AUTOBACKUP_LAST_TIME_KEY = 'docpocket_autobackup_last_time';
 const AUTOBACKUP_LAST_INFO_KEY = 'docpocket_autobackup_last_info';
-// Temporisation au repos (25 secondes) pour ne jamais ralentir la saisie en cours de consultation
-const DEBOUNCE_DELAY_MS = 25000;
+// Temporisation courte (1.2 seconde) pour batcher les frappes rapides et synchroniser quasi-instantanément avec Firebase
+const DEBOUNCE_DELAY_MS = 1200;
 
 let debounceTimer = null;
 let isBackupInProgress = false;
@@ -223,6 +223,17 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
       performAutoBackupNow(nextReason);
     }
   }
+}
+
+/**
+ * Déclenche immédiatement l'auto-sauvegarde et la diffusion vers Firebase sans attendre
+ */
+export function triggerImmediateAutoBackup(reason = 'modification_immediate') {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  return performAutoBackupNow(reason);
 }
 
 /**
