@@ -462,7 +462,7 @@ export default function PatientDetail({
         <h3 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', color: '#38bdf8', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
           📋 Historique Médical & Antécédents
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
           <div style={{ background: '#1e293b', padding: '14px', borderRadius: '8px' }}>
             <span style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Médicaux :</span>
             <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>
@@ -491,7 +491,7 @@ export default function PatientDetail({
         borderRadius: '12px',
         border: '1px solid rgba(255, 255, 255, 0.08)'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#38bdf8' }}>
             🩺 Consultations Antérieures Enregistrées ({consultations.length})
           </h3>
@@ -527,26 +527,27 @@ export default function PatientDetail({
                 key={c.id}
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  flexDirection: 'column',
+                  gap: '12px',
                   background: '#1e293b',
-                  padding: '14px 18px',
+                  padding: '14px 16px',
                   borderRadius: '10px',
                   borderLeft: '4px solid #38bdf8',
-                  transition: 'background 0.2s'
+                  transition: 'background 0.2s',
+                  overflow: 'hidden'
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                     <strong style={{ color: '#38bdf8', fontSize: '0.95rem' }}>📅 {c.date} ({c.heure || ''})</strong>
                     <span style={{ color: '#cbd5e1', fontWeight: 600 }}>• {c.motif}</span>
                   </div>
 
-                  <div style={{ color: '#f8fafc', fontSize: '0.9rem', marginBottom: '4px' }}>
+                  <div style={{ color: '#f8fafc', fontSize: '0.9rem', marginBottom: '6px' }}>
                     <strong>Diagnostic :</strong> {c.diagnostic || 'Non spécifié'}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem', color: '#94a3b8' }}>
+                  <div style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', color: '#94a3b8', flexWrap: 'wrap' }}>
                     {c.taMax && <span>TA: <strong style={{ color: '#fff' }}>{c.taMax}/{c.taMin}</strong></span>}
                     {c.poids && <span>Poids: <strong style={{ color: '#fff' }}>{c.poids} kg</strong></span>}
                     {c.bmi && <span>IMC: <strong style={{ color: '#fff' }}>{c.bmi}</strong></span>}
@@ -555,21 +556,30 @@ export default function PatientDetail({
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  paddingTop: '8px',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.06)'
+                }}>
                   {Number(c.reposJours) > 0 && (
                     <button
                       onClick={() => generateMedicalRestCertificate(patient, c)}
                       style={{
-                        padding: '8px 14px',
+                        flex: '1 1 auto',
+                        padding: '8px 12px',
                         borderRadius: '8px',
                         background: 'rgba(16, 185, 129, 0.22)',
                         border: '1px solid rgba(16, 185, 129, 0.45)',
                         color: '#4ade80',
                         fontWeight: 600,
-                        fontSize: '0.85rem',
+                        fontSize: '0.82rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'center',
                         gap: '6px'
                       }}
                       title="Imprimer le certificat médical officiel de repos (sans mention de diagnostic)"
@@ -581,16 +591,18 @@ export default function PatientDetail({
                   <button
                     onClick={() => generateConsultationReport(patient, c)}
                     style={{
-                      padding: '8px 14px',
+                      flex: '1 1 auto',
+                      padding: '8px 12px',
                       borderRadius: '8px',
                       background: 'rgba(16, 185, 129, 0.15)',
                       border: '1px solid rgba(16, 185, 129, 0.35)',
                       color: '#34d399',
                       fontWeight: 600,
-                      fontSize: '0.85rem',
+                      fontSize: '0.82rem',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px'
                     }}
                     title="Générer, imprimer ou exporter en PDF ce résumé de consultation"
@@ -601,16 +613,18 @@ export default function PatientDetail({
                   <button
                     onClick={() => onOpenConsultation && onOpenConsultation(patient, c)}
                     style={{
-                      padding: '8px 16px',
+                      flex: '1 1 auto',
+                      padding: '8px 14px',
                       borderRadius: '8px',
                       background: 'rgba(56, 189, 248, 0.15)',
                       border: '1px solid rgba(56, 189, 248, 0.35)',
                       color: '#38bdf8',
                       fontWeight: 600,
-                      fontSize: '0.85rem',
+                      fontSize: '0.82rem',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px'
                     }}
                   >
@@ -629,15 +643,16 @@ export default function PatientDetail({
                       border: '1px solid rgba(239, 68, 68, 0.35)',
                       color: '#f87171',
                       fontWeight: 600,
-                      fontSize: '0.85rem',
+                      fontSize: '0.82rem',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px'
                     }}
                     title="Supprimer définitivement cette consultation avec confirmation par code PIN"
                   >
-                    🗑️ Supprimer
+                    🗑️
                   </button>
                 </div>
               </div>
@@ -701,16 +716,17 @@ export default function PatientDetail({
                 key={p.id}
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  flexDirection: 'column',
+                  gap: '10px',
                   background: '#1e293b',
-                  padding: '14px 18px',
+                  padding: '14px 16px',
                   borderRadius: '10px',
-                  borderLeft: `4px solid ${p.type === 'apci' ? '#d97706' : p.type === 'biologie' ? '#059669' : '#0284c7'}`
+                  borderLeft: `4px solid ${p.type === 'apci' ? '#d97706' : p.type === 'biologie' ? '#059669' : '#0284c7'}`,
+                  overflow: 'hidden'
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                     <strong style={{ color: '#fff', fontSize: '0.95rem' }}>📅 {p.date}</strong>
                     <span style={{
                       fontSize: '0.75rem',
@@ -736,10 +752,11 @@ export default function PatientDetail({
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
                   <button
                     onClick={() => generatePrescriptionReport(patient, p)}
                     style={{
+                      flex: '1 1 auto',
                       padding: '8px 14px',
                       borderRadius: '8px',
                       background: 'rgba(16, 185, 129, 0.15)',
@@ -750,6 +767,7 @@ export default function PatientDetail({
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px'
                     }}
                     title="Générer, réimprimer ou sauvegarder le document d'ordonnance PDF"
@@ -818,16 +836,17 @@ export default function PatientDetail({
                 key={inv.id}
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  flexDirection: 'column',
+                  gap: '10px',
                   background: '#1e293b',
-                  padding: '14px 18px',
+                  padding: '14px 16px',
                   borderRadius: '10px',
-                  borderLeft: `4px solid ${inv.modeReglement === 'cnam_apci' ? '#d97706' : inv.modeReglement === 'cnam_mo' ? '#059669' : '#0284c7'}`
+                  borderLeft: `4px solid ${inv.modeReglement === 'cnam_apci' ? '#d97706' : inv.modeReglement === 'cnam_mo' ? '#059669' : '#0284c7'}`,
+                  overflow: 'hidden'
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                     <strong style={{ color: '#fff', fontSize: '0.95rem' }}>📅 {inv.date}</strong>
                     <span style={{ fontSize: '0.85rem', color: '#38bdf8', fontWeight: 600 }}>
                       N° {inv.numFacture || `FAC-${inv.id}`}
@@ -847,17 +866,18 @@ export default function PatientDetail({
                   <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
                     Actes : <strong>{(inv.actes || []).map(a => a.nom).join(', ') || 'Consultation'}</strong>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
-                    Total : <strong>{(inv.totalGlobal || 0).toFixed(3)} DT</strong> | 
-                    Part Patient : <strong style={{ color: '#4ade80' }}>{(inv.partPatient || 0).toFixed(3)} DT</strong> | 
-                    Part CNAM : <strong style={{ color: '#38bdf8' }}>{(inv.partCnam || 0).toFixed(3)} DT</strong>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px', flexWrap: 'wrap', display: 'flex', gap: '8px' }}>
+                    <span>Total : <strong>{(inv.totalGlobal || 0).toFixed(3)} DT</strong></span>
+                    <span>Part Patient : <strong style={{ color: '#4ade80' }}>{(inv.partPatient || 0).toFixed(3)} DT</strong></span>
+                    <span>Part CNAM : <strong style={{ color: '#38bdf8' }}>{(inv.partCnam || 0).toFixed(3)} DT</strong></span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
                   <button
                     onClick={() => generateReceiptReport(patient, inv)}
                     style={{
+                      flex: '1 1 auto',
                       padding: '8px 14px',
                       borderRadius: '8px',
                       background: 'rgba(2, 132, 199, 0.15)',
@@ -868,6 +888,7 @@ export default function PatientDetail({
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px'
                     }}
                     title="Imprimer ou télécharger la quittance officielle"
@@ -888,6 +909,7 @@ export default function PatientDetail({
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '4px'
                     }}
                     title="Supprimer définitivement ce paiement"

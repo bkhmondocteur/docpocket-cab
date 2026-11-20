@@ -344,9 +344,10 @@ export async function transmitAppointmentToMobile(appointment) {
 
   // 5. Déclenchement de l'API Vercel Cron de réveil si le rappel est dû immédiatement
   const now = Date.now();
-  if (reminderTimestamp <= (now + 60000)) {
+  const isImmediate = reminderTimestamp <= (now + 60000);
+  if (isImmediate) {
     try {
-      fetch(CLOUD_CONFIG.cronUrl).catch(() => {});
+      await fetch(CLOUD_CONFIG.cronUrl);
     } catch {}
   }
 
@@ -387,6 +388,7 @@ export async function transmitAppointmentToMobile(appointment) {
     localServerSuccess,
     cloudDocId,
     deviceModel: device.deviceModel,
+    isImmediate,
     message: cloudSuccess 
       ? `✓ RDV transmis à DocPocket SMS RDV (Synchronisé avec votre smartphone ${device.deviceModel}).`
       : `✓ RDV enregistré dans DocPocket SMS RDV (en attente de synchronisation).`

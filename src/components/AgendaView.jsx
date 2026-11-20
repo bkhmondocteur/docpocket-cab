@@ -46,6 +46,7 @@ export default function AgendaView({
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [smsActive, setSmsActive] = useState(() => isSmsRdvActivated());
   const [smsLicenseInfo, setSmsLicenseInfo] = useState(() => getSmsLicenseStatus());
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -132,6 +133,9 @@ export default function AgendaView({
       return;
     }
 
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     try {
       const patient = initialPatient || patients.find(p => String(p.id) === String(formData.patientId));
       const patientName = formData.patientName || (patient ? (patient.fullname || `${patient.nom} ${patient.prenom}`) : 'Patient');
@@ -154,14 +158,16 @@ export default function AgendaView({
       // 1. Si DocPocket SMS RDV est ACTIVÉ : transmission automatique vers DocPocket SMS RDV
       // 2. Si DocPocket SMS RDV n'est PAS ACTIVÉ : le RDV reste dans DocPocket Cab uniquement (aucun envoi externe)
       const isSmsActivatedNow = isSmsRdvActivated();
+      let smsResult = null;
       if (isSmsActivatedNow && sendSmsReminder) {
-        transmitAppointmentToMobile(savedData)
-          .then(res => {
-            if (res && res.success) {
-              console.log("✓ RDV transmis automatiquement à DocPocket SMS RDV");
-            }
-          })
-          .catch(err => console.warn("Erreur transmission DocPocket SMS RDV:", err));
+        try {
+          smsResult = await transmitAppointmentToMobile(savedData);
+          if (smsResult && smsResult.success) {
+            console.log("✓ RDV transmis automatiquement à DocPocket SMS RDV :", smsResult);
+          }
+        } catch (smsErr) {
+          console.warn("Erreur transmission DocPocket SMS RDV:", smsErr);
+        }
       } else if (!isSmsActivatedNow) {
         console.info("ℹ️ DocPocket SMS RDV non activé : rendez-vous conservé dans DocPocket Cab uniquement.");
       }
@@ -169,13 +175,32 @@ export default function AgendaView({
       setShowModal(false);
       await loadData();
 
-      if (returnToConsultation && onReturnToConsultation) {
-        if (window.confirm("✓ Rendez-vous planifié avec succès !\n\nSouhaitez-vous retourner directement à la consultation en cours ?")) {
-          onReturnToConsultation();
+      if (isSmsActivatedNow && sendSmsReminder && smsResult?.success) {
+        const isImmediate = smsResult.isImmediate;
+        const msg = isImmediate
+          ? `✓ Rendez-vous enregistré avec succès !\n\n📱 DocPocket SMS RDV : Le rendez-vous étant prévu dans moins de 48h, le rappel SMS a été déclenché immédiatement vers votre smartphone.`
+          : `✓ Rendez-vous enregistré avec succès !\n\n📱 DocPocket SMS RDV : Le rappel SMS sera envoyé automatiquement 48h avant le rendez-vous (programmé sur votre passerelle smartphone).`;
+
+        if (returnToConsultation && onReturnToConsultation) {
+          if (window.confirm(`${msg}\n\nSouhaitez-vous retourner directement à la consultation en cours ?`)) {
+            onReturnToConsultation();
+          }
+        } else {
+          alert(msg);
+        }
+      } else {
+        if (returnToConsultation && onReturnToConsultation) {
+          if (window.confirm("✓ Rendez-vous enregistré avec succès !\n\nSouhaitez-vous retourner directement à la consultation en cours ?")) {
+            onReturnToConsultation();
+          }
+        } else {
+          alert("✓ Rendez-vous enregistré avec succès !");
         }
       }
     } catch (err) {
       alert("Erreur lors de l'enregistrement du rendez-vous : " + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -568,25 +593,30 @@ export default function AgendaView({
       {showModal && (
         <div style={{
           position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(10, 15, 29, 0.85)',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(10, 15, 29, 0.88)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'center',
-          zIndex: 99999,
-          padding: '12px'
+          zIndex: 999999,
+          padding: '12px 12px 90px 12px',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch'
         }}>
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
             maxWidth: '520px',
-            maxHeight: 'calc(100dvh - 24px)',
+            maxHeight: 'calc(100dvh - 105px)',
             display: 'flex',
             flexDirection: 'column',
             background: '#0f172a',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
             borderRadius: '16px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
             overflow: 'hidden'
           }}>
             <div style={{
@@ -595,7 +625,7 @@ export default function AgendaView({
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background: 'rgba(30, 41, 59, 0.6)',
+              background: 'rgba(30, 41, 59, 0.7)',
               flexShrink: 0
             }}>
               <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#38bdf8', fontWeight: 600 }}>
@@ -604,14 +634,14 @@ export default function AgendaView({
               <button 
                 type="button" 
                 onClick={() => setShowModal(false)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.4rem', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.4rem', cursor: 'pointer', padding: '4px 8px' }}
               >
                 &times;
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} style={{
-              padding: '20px',
+            <form id="rdv-form" onSubmit={handleSubmit} style={{
+              padding: '18px',
               display: 'flex',
               flexDirection: 'column',
               gap: '16px',
@@ -940,52 +970,69 @@ export default function AgendaView({
                 </div>
               )}
 
-              <div style={{
-                position: 'sticky',
-                bottom: 0,
-                background: '#0f172a',
-                zIndex: 10,
-                marginTop: 'auto',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '10px',
-                paddingTop: '14px',
-                paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))',
-                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.4)'
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: '8px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    color: '#cbd5e1',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    cursor: 'pointer',
-                    fontWeight: 600
-                  }}
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: '10px 24px',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                    color: '#fff',
-                    fontWeight: 700,
-                    border: 'none',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)'
-                  }}
-                >
-                  Planifier
-                </button>
-              </div>
             </form>
+
+            {/* Pied de page fixe - Boutons TOUJOURS 100% VISIBLES EN BAS DU MODAL */}
+            <div style={{
+              flexShrink: 0,
+              background: '#0b1324',
+              borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+              padding: '12px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '12px',
+              boxShadow: '0 -4px 16px rgba(0, 0, 0, 0.5)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                disabled={isSubmitting}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: '#cbd5e1',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.88rem'
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                form="rdv-form"
+                disabled={isSubmitting}
+                style={{
+                  padding: '10px 22px',
+                  borderRadius: '8px',
+                  background: isSubmitting 
+                    ? '#475569' 
+                    : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  border: 'none',
+                  cursor: isSubmitting ? 'wait' : 'pointer',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <span style={{ display: 'inline-block' }}>⏳</span> Enregistrement...
+                  </>
+                ) : (
+                  <>
+                    <span>✓</span> Enregistrer le rendez-vous
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -993,25 +1040,30 @@ export default function AgendaView({
       {showSettingsModal && (
         <div style={{
           position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(10, 15, 29, 0.85)',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(10, 15, 29, 0.88)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'center',
-          zIndex: 99999,
-          padding: '12px'
+          zIndex: 999999,
+          padding: '12px 12px 90px 12px',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch'
         }}>
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
             maxWidth: '520px',
-            maxHeight: 'calc(100dvh - 24px)',
+            maxHeight: 'calc(100dvh - 105px)',
             display: 'flex',
             flexDirection: 'column',
             background: '#0f172a',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
             borderRadius: '16px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
             overflow: 'hidden'
           }}>
             <div style={{
@@ -1080,28 +1132,55 @@ export default function AgendaView({
                   }}
                 />
               </div>
+            </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setGatewayUrl(gatewayUrlInput);
-                    await checkGateway();
-                    setShowSettingsModal(false);
-                  }}
-                  style={{
-                    padding: '10px 22px',
-                    borderRadius: '8px',
-                    background: '#0284c7',
-                    color: '#fff',
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Enregistrer & Tester
-                </button>
-              </div>
+            <div style={{
+              flexShrink: 0,
+              background: '#0b1324',
+              borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+              padding: '12px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              boxShadow: '0 -4px 16px rgba(0, 0, 0, 0.5)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: '#cbd5e1',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.88rem'
+                }}
+              >
+                Fermer
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setGatewayUrl(gatewayUrlInput);
+                  await checkGateway();
+                  setShowSettingsModal(false);
+                }}
+                style={{
+                  padding: '10px 22px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)'
+                }}
+              >
+                Enregistrer & Tester
+              </button>
             </div>
           </div>
         </div>
