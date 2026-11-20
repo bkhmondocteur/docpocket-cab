@@ -43,6 +43,7 @@ export default function AgendaView({
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [gatewayUrlInput, setGatewayUrlInput] = useState(getGatewayUrl());
   const [sendSmsReminder, setSendSmsReminder] = useState(true);
+  const [sendImmediateSms, setSendImmediateSms] = useState(false);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [smsActive, setSmsActive] = useState(() => isSmsRdvActivated());
   const [smsLicenseInfo, setSmsLicenseInfo] = useState(() => getSmsLicenseStatus());
@@ -123,7 +124,32 @@ export default function AgendaView({
       notes: ''
     });
     setSearchPatient('');
+    setSendImmediateSms(false);
     setShowModal(true);
+  };
+
+  const handleSendSmsNow = async (appt) => {
+    if (!isSmsRdvActivated()) {
+      alert("DocPocket SMS RDV n'est pas activé sur ce cabinet.\nActivez-le dans le menu Outils > DocPocket SMS RDV.");
+      return;
+    }
+    const tel = (appt.telephone || '').replace(/\s+/g, '');
+    if (!tel) {
+      alert("Aucun numéro de téléphone n'est enregistré pour ce rendez-vous.");
+      return;
+    }
+    if (window.confirm(`Transmettre immédiatement l'ordre d'envoi SMS pour ${appt.patientName} (${tel}) vers votre smartphone Android Infinix ?`)) {
+      try {
+        const res = await transmitAppointmentToMobile(appt, { forceImmediate: true });
+        if (res && res.success) {
+          alert(`✓ Ordre SMS envoyé avec succès vers le Cloud et votre smartphone Infinix !\nLe SMS de rappel à destination de ${tel} est en cours d'envoi direct par votre carte SIM.`);
+        } else {
+          alert("Échec de la transmission SMS : " + (res?.message || 'Erreur inconnue'));
+        }
+      } catch (err) {
+        alert("Erreur lors de l'envoi du SMS : " + err.message);
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -161,7 +187,7 @@ export default function AgendaView({
       let smsResult = null;
       if (isSmsActivatedNow && sendSmsReminder) {
         try {
-          smsResult = await transmitAppointmentToMobile(savedData);
+          smsResult = await transmitAppointmentToMobile(savedData, { forceImmediate: sendImmediateSms });
           if (smsResult && smsResult.success) {
             console.log("✓ RDV transmis automatiquement à DocPocket SMS RDV :", smsResult);
           }
@@ -176,9 +202,9 @@ export default function AgendaView({
       await loadData();
 
       if (isSmsActivatedNow && sendSmsReminder && smsResult?.success) {
-        const isImmediate = smsResult.isImmediate;
+        const isImmediate = smsResult.isImmediate || sendImmediateSms;
         const msg = isImmediate
-          ? `✓ Rendez-vous enregistré avec succès !\n\n📱 DocPocket SMS RDV : Le rendez-vous étant prévu dans moins de 48h, le rappel SMS a été déclenché immédiatement vers votre smartphone.`
+          ? `✓ Rendez-vous enregistré avec succès !\n\n📱 DocPocket SMS RDV : L'envoi SMS immédiat a été déclenché vers votre smartphone Infinix.`
           : `✓ Rendez-vous enregistré avec succès !\n\n📱 DocPocket SMS RDV : Le rappel SMS sera envoyé automatiquement 48h avant le rendez-vous (programmé sur votre passerelle smartphone).`;
 
         if (returnToConsultation && onReturnToConsultation) {
@@ -454,11 +480,11 @@ export default function AgendaView({
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '10px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '10px', marginTop: '4px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => handleCheckInToWaitingRoom(a)}
                     style={{
-                      flex: 1,
+                      flex: '1 1 140px',
                       padding: '10px',
                       borderRadius: '8px',
                       background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
@@ -473,8 +499,33 @@ export default function AgendaView({
                       gap: '6px'
                     }}
                   >
-                    ⏱️ Transférer en Attente
+                    ⏱️ Salle d'Attente
                   </button>
+
+                  {a.telephone && (
+                    <button
+                      onClick={() => handleSendSmsNow(a)}
+                      style={{
+                        flex: '1 1 120px',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        background: 'rgba(34, 197, 94, 0.18)',
+                        border: '1px solid rgba(34, 197, 94, 0.4)',
+                        color: '#4ade80',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                      title="Déclencher immédiatement l'envoi du SMS via la passerelle smartphone"
+                    >
+                      📱 SMS Direct
+                    </button>
+                  )}
+
                   <button
                     onClick={() => handleDelete(a.id)}
                     style={{
@@ -549,7 +600,28 @@ export default function AgendaView({
                       {a.notes || '-'}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
+                        {a.telephone && (
+                          <button
+                            onClick={() => handleSendSmsNow(a)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              background: 'rgba(34, 197, 94, 0.15)',
+                              color: '#4ade80',
+                              border: '1px solid rgba(34, 197, 94, 0.35)',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="Déclencher immédiatement l'envoi du SMS via la passerelle smartphone"
+                          >
+                            📱 SMS
+                          </button>
+                        )}
                         <button
                           onClick={() => handleCheckInToWaitingRoom(a)}
                           style={{
@@ -563,7 +635,7 @@ export default function AgendaView({
                             cursor: 'pointer'
                           }}
                         >
-                          ⏱️ Transférer en Attente
+                          ⏱️ Salle d'Attente
                         </button>
                         <button
                           onClick={() => handleDelete(a.id)}
@@ -597,38 +669,38 @@ export default function AgendaView({
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(10, 15, 29, 0.88)',
+          background: 'rgba(10, 15, 29, 0.94)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: isMobile ? 'stretch' : 'center',
           justifyContent: 'center',
-          zIndex: 999999,
-          padding: '12px 12px 90px 12px',
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch'
+          zIndex: 100000,
+          padding: isMobile ? 0 : '16px',
+          overflow: 'hidden'
         }}>
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
-            maxWidth: '520px',
-            maxHeight: 'calc(100dvh - 105px)',
+            maxWidth: isMobile ? '100%' : '520px',
+            height: isMobile ? '100dvh' : 'auto',
+            maxHeight: isMobile ? '100dvh' : 'calc(100dvh - 50px)',
             display: 'flex',
             flexDirection: 'column',
             background: '#0f172a',
-            border: '1px solid rgba(56, 189, 248, 0.35)',
-            borderRadius: '16px',
+            border: isMobile ? 'none' : '1px solid rgba(56, 189, 248, 0.35)',
+            borderRadius: isMobile ? 0 : '16px',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
             overflow: 'hidden'
           }}>
             <div style={{
-              padding: '16px 20px',
+              padding: isMobile ? '14px 16px' : '16px 20px',
               borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background: 'rgba(30, 41, 59, 0.7)',
+              background: 'rgba(30, 41, 59, 0.85)',
               flexShrink: 0
             }}>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#38bdf8', fontWeight: 600 }}>
+              <h2 style={{ margin: 0, fontSize: isMobile ? '1.1rem' : '1.2rem', color: '#38bdf8', fontWeight: 600 }}>
                 + Nouveau Rendez-vous
               </h2>
               <button 
@@ -641,14 +713,15 @@ export default function AgendaView({
             </div>
 
             <form id="rdv-form" onSubmit={handleSubmit} style={{
-              padding: '18px',
+              padding: isMobile ? '14px 16px 24px 16px' : '18px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '16px',
+              gap: '14px',
               flex: 1,
               minHeight: 0,
               overflowY: 'auto',
-              WebkitOverflowScrolling: 'touch'
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehavior: 'contain'
             }}>
               {/* Sélection du patient : Automatique si venant de la consultation, sinon sélection manuelle */}
               {initialPatient ? (
@@ -903,7 +976,7 @@ export default function AgendaView({
                   borderRadius: '10px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '8px'
+                  gap: '10px'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -922,7 +995,29 @@ export default function AgendaView({
                       ✓ SMS RDV Activé
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: '#94a3b8', paddingLeft: '28px' }}>
+
+                  {sendSmsReminder && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+                    }}>
+                      <input
+                        type="checkbox"
+                        id="sendImmediateSms"
+                        checked={sendImmediateSms}
+                        onChange={(e) => setSendImmediateSms(e.target.checked)}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#38bdf8' }}
+                      />
+                      <label htmlFor="sendImmediateSms" style={{ color: '#38bdf8', fontWeight: 600, fontSize: '0.84rem', cursor: 'pointer' }}>
+                        ⚡ Déclencher l'envoi SMS immédiatement (Test ou confirmation instantanée)
+                      </label>
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
                     Le rendez-vous sera transmis automatiquement à la passerelle DocPocket SMS RDV pour le smartphone.
                   </div>
                 </div>
@@ -977,26 +1072,29 @@ export default function AgendaView({
               flexShrink: 0,
               background: '#0b1324',
               borderTop: '1px solid rgba(255, 255, 255, 0.12)',
-              padding: '12px 18px',
+              padding: isMobile ? '12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) 16px' : '14px 20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
               gap: '12px',
-              boxShadow: '0 -4px 16px rgba(0, 0, 0, 0.5)'
+              boxShadow: '0 -6px 20px rgba(0, 0, 0, 0.6)',
+              zIndex: 10
             }}>
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
                 disabled={isSubmitting}
                 style={{
-                  padding: '10px 18px',
+                  flex: isMobile ? 1 : 'none',
+                  padding: '12px 18px',
                   borderRadius: '8px',
                   background: 'rgba(255, 255, 255, 0.05)',
                   color: '#cbd5e1',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                   cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
-                  fontSize: '0.88rem'
+                  fontSize: '0.88rem',
+                  textAlign: 'center'
                 }}
               >
                 Annuler
@@ -1006,7 +1104,8 @@ export default function AgendaView({
                 form="rdv-form"
                 disabled={isSubmitting}
                 style={{
-                  padding: '10px 22px',
+                  flex: isMobile ? 2 : 'none',
+                  padding: '12px 22px',
                   borderRadius: '8px',
                   background: isSubmitting 
                     ? '#475569' 
@@ -1019,6 +1118,7 @@ export default function AgendaView({
                   boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)',
                   display: 'inline-flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '8px'
                 }}
               >
@@ -1044,58 +1144,59 @@ export default function AgendaView({
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(10, 15, 29, 0.88)',
+          background: 'rgba(10, 15, 29, 0.94)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: isMobile ? 'stretch' : 'center',
           justifyContent: 'center',
-          zIndex: 999999,
-          padding: '12px 12px 90px 12px',
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch'
+          zIndex: 100000,
+          padding: isMobile ? 0 : '16px',
+          overflow: 'hidden'
         }}>
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
-            maxWidth: '520px',
-            maxHeight: 'calc(100dvh - 105px)',
+            maxWidth: isMobile ? '100%' : '520px',
+            height: isMobile ? '100dvh' : 'auto',
+            maxHeight: isMobile ? '100dvh' : 'calc(100dvh - 50px)',
             display: 'flex',
             flexDirection: 'column',
             background: '#0f172a',
-            border: '1px solid rgba(56, 189, 248, 0.35)',
-            borderRadius: '16px',
+            border: isMobile ? 'none' : '1px solid rgba(56, 189, 248, 0.35)',
+            borderRadius: isMobile ? 0 : '16px',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
             overflow: 'hidden'
           }}>
             <div style={{
-              padding: '16px 20px',
+              padding: isMobile ? '14px 16px' : '16px 20px',
               borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background: 'rgba(30, 41, 59, 0.6)',
+              background: 'rgba(30, 41, 59, 0.85)',
               flexShrink: 0
             }}>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#38bdf8', fontWeight: 600 }}>
+              <h2 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.2rem', color: '#38bdf8', fontWeight: 600 }}>
                 📱 Configuration Passerelle DocPocket SMS RDV
               </h2>
               <button 
                 type="button" 
                 onClick={() => setShowSettingsModal(false)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.4rem', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.4rem', cursor: 'pointer', padding: '4px 8px' }}
               >
                 &times;
               </button>
             </div>
 
             <div style={{
-              padding: '20px',
+              padding: isMobile ? '16px 14px 24px 14px' : '20px',
               display: 'flex',
               flexDirection: 'column',
               gap: '16px',
               flex: 1,
               minHeight: 0,
               overflowY: 'auto',
-              WebkitOverflowScrolling: 'touch'
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehavior: 'contain'
             }}>
               <div style={{
                 padding: '14px',

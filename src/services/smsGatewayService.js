@@ -338,7 +338,7 @@ export function calculateReminderEpochMs(dateRdv, heureRdv) {
  * CONDITION STRICTE : DocPocket SMS RDV doit être activé par sa propre licence.
  * Si non activé : le rendez-vous reste dans DocPocket Cab uniquement.
  */
-export async function transmitAppointmentToMobile(appointment) {
+export async function transmitAppointmentToMobile(appointment, options = {}) {
   // 1. VÉRIFICATION STRICTE DE LA LICENCE DOCPOCKET SMS RDV
   if (!isSmsRdvActivated()) {
     console.info("ℹ️ DocPocket SMS RDV non activé : le rendez-vous reste dans DocPocket Cab uniquement.");
@@ -348,6 +348,8 @@ export async function transmitAppointmentToMobile(appointment) {
       message: "DocPocket SMS RDV n'est pas activé. Le rendez-vous reste uniquement dans DocPocket Cab."
     };
   }
+
+  const forceImmediate = Boolean(options.forceImmediate || appointment.forceImmediate);
 
   // 2. Enregistrement immédiat dans la file locale DocPocket Cab
   const queuedEntry = recordTransmittedAppointment(appointment);
@@ -363,8 +365,10 @@ export async function transmitAppointmentToMobile(appointment) {
   const dateRdv = appointment.rdvDate || appointment.dateRdv;
   const heureRdv = appointment.rdvTime || appointment.heureRdv || '10:00';
   const language = appointment.language || 'fr';
-  const texteSms = appointment.notes || appointment.texteSms || buildSmsText(nomPatient, dateRdv, heureRdv, doctorName, language);
-  const reminderTimestamp = calculateReminderEpochMs(dateRdv, heureRdv);
+  const texteSms = appointment.texteSms || buildSmsText(nomPatient, dateRdv, heureRdv, doctorName, language);
+  
+  // Si forceImmediate : horodatage immédiat pour envoi direct sans délai 48h
+  const reminderTimestamp = forceImmediate ? Date.now() : calculateReminderEpochMs(dateRdv, heureRdv);
 
   let cloudSuccess = false;
   let cloudDocId = null;
@@ -409,13 +413,18 @@ export async function transmitAppointmentToMobile(appointment) {
     console.warn("Erreur transmission Cloud Firestore docpocket-rdv :", err.message);
   }
 
-  // 5. Déclenchement de l'API Vercel Cron de réveil si le rappel est dû immédiatement
+  // 5. Déclenchement de l'API Vercel Cron de réveil si le rappel est dû immédiatement (ou forcé)
   const now = Date.now();
-  const isImmediate = reminderTimestamp <= (now + 60000);
+  const isImmediate = forceImmediate || reminderTimestamp <= (now + 60000);
+  let cronResult = null;
   if (isImmediate) {
     try {
-      await fetch(CLOUD_CONFIG.cronUrl);
-    } catch {}
+      const cRes = await fetch(CLOUD_CONFIG.cronUrl);
+      cronResult = await cRes.json();
+      console.log("✓ Vercel Cron déclenché avec succès :", cronResult);
+    } catch (cErr) {
+      console.warn("Avertissement appel Cron Vercel :", cErr.message);
+    }
   }
 
   // 6. Transmission de secours vers le serveur passerelle local (port 3000 / Wi-Fi Cabinet)
@@ -431,7 +440,7 @@ export async function transmitAppointmentToMobile(appointment) {
       heureRdv,
       texteSms,
       language,
-      reminderHours: 48,
+      reminderHours: forceImmediate ? 0 : 48,
       synced: cloudSuccess,
       smsEnvoye: false,
       timestamp: Date.now()
@@ -450,12 +459,15 @@ export async function transmitAppointmentToMobile(appointment) {
   }
 
   return {
-    success: true,
+    success: cloudSuccess || localServerSuccess,
+    cloudDocId,
     cloudSuccess,
     localServerSuccess,
-    cloudDocId,
-    deviceModel: device.deviceModel,
     isImmediate,
+    forceImmediate,
+    cronResult,
+    queuedEntry,
+    deviceModel: device.deviceModel,
     message: cloudSuccess 
       ? `✓ RDV transmis à DocPocket SMS RDV (Synchronisé avec votre smartphone ${device.deviceModel}).`
       : `✓ RDV enregistré dans DocPocket SMS RDV (en attente de synchronisation).`
