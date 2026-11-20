@@ -34,6 +34,7 @@ export default function AgendaView({
     id: null,
     patientId: '',
     patientName: '',
+    telephone: '',
     rdvDate: selectedDate,
     rdvTime: '09:00',
     object: 'Consultation',
@@ -49,6 +50,7 @@ export default function AgendaView({
   const [smsActive, setSmsActive] = useState(() => isSmsRdvActivated());
   const [smsLicenseInfo, setSmsLicenseInfo] = useState(() => getSmsLicenseStatus());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [patientError, setPatientError] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -104,12 +106,14 @@ export default function AgendaView({
         id: null,
         patientId: String(initialPatient.id || initialPatient.numfch || 'current'),
         patientName: pName,
+        telephone: initialPatient.telephone || '',
         rdvDate: selectedDate,
         rdvTime: '09:30',
         object: 'Consultation de suivi',
         notes: ''
       });
       setSearchPatient('');
+      setPatientError(false);
       setShowModal(true);
     }
   }, [initialPatient]);
@@ -119,12 +123,14 @@ export default function AgendaView({
       id: null,
       patientId: '',
       patientName: '',
+      telephone: '',
       rdvDate: selectedDate,
       rdvTime: '09:30',
       object: 'Consultation de suivi',
       notes: ''
     });
     setSearchPatient('');
+    setPatientError(false);
     setSendImmediateSms(false);
     setShowModal(true);
   };
@@ -135,12 +141,14 @@ export default function AgendaView({
       id: appt.id,
       patientId: String(appt.patientId || ''),
       patientName: appt.patientName || (p ? `${p.nom} ${p.prenom}` : ''),
+      telephone: appt.telephone || (p ? p.telephone : ''),
       rdvDate: appt.rdvDate || selectedDate,
       rdvTime: appt.rdvTime || '09:30',
       object: appt.object || 'Consultation de suivi',
       notes: appt.notes || ''
     });
     setSearchPatient(appt.patientName || '');
+    setPatientError(false);
     setSendSmsReminder(appt.sendSmsReminder !== false);
     setSendImmediateSms(false);
     setShowModal(true);
@@ -172,21 +180,53 @@ export default function AgendaView({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.patientId) {
-      alert('Veuillez sélectionner un patient pour ce rendez-vous.');
-      return;
+
+    let targetPatientId = formData.patientId;
+    let targetPatientName = formData.patientName;
+    let targetTelephone = formData.telephone || '';
+
+    // Si aucun patient sélectionné dans le formulaire
+    if (!targetPatientId) {
+      // Si l'utilisateur a tapé du texte dans la barre de recherche
+      if (searchPatient && searchPatient.trim()) {
+        const query = searchPatient.trim().toLowerCase();
+        // Chercher une correspondance exacte ou proche
+        const match = filteredPatients.find(p => {
+          const full1 = `${p.nom || ''} ${p.prenom || ''}`.trim().toLowerCase();
+          const full2 = `${p.prenom || ''} ${p.nom || ''}`.trim().toLowerCase();
+          return full1 === query || full2 === query || (p.nom && p.nom.toLowerCase() === query);
+        }) || (filteredPatients.length === 1 ? filteredPatients[0] : null);
+
+        if (match) {
+          targetPatientId = String(match.id);
+          targetPatientName = match.fullname || `${match.nom} ${match.prenom}`;
+          if (!targetTelephone && match.telephone) targetTelephone = match.telephone;
+        } else {
+          // Patient direct / rapide
+          targetPatientId = 'direct_' + Date.now();
+          targetPatientName = searchPatient.trim();
+        }
+        setPatientError(false);
+      } else {
+        setPatientError(true);
+        alert('Veuillez sélectionner ou renseigner un patient pour ce rendez-vous.');
+        return;
+      }
     }
 
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     try {
-      const patient = initialPatient || patients.find(p => String(p.id) === String(formData.patientId));
-      const patientName = formData.patientName || (patient ? (patient.fullname || `${patient.nom} ${patient.prenom}`) : 'Patient');
+      const patient = initialPatient || patients.find(p => String(p.id) === String(targetPatientId));
+      const patientName = targetPatientName || (patient ? (patient.fullname || `${patient.nom} ${patient.prenom}`) : 'Patient');
+      const tel = (targetTelephone || patient?.telephone || initialPatient?.telephone || '').trim();
+
       const savedData = {
         ...formData,
+        patientId: targetPatientId,
         patientName: patientName,
-        telephone: patient?.telephone || initialPatient?.telephone || '',
+        telephone: tel,
         email: patient?.email || initialPatient?.email || '',
         sendSmsReminder: sendSmsReminder
       };
@@ -762,20 +802,23 @@ export default function AgendaView({
           justifyContent: 'center',
           zIndex: 100000,
           padding: isMobile ? 0 : '16px',
-          overflow: 'hidden'
+          overflowY: 'auto',
+          boxSizing: 'border-box'
         }}>
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
-            maxWidth: isMobile ? '100%' : '520px',
-            height: isMobile ? '100dvh' : 'auto',
-            maxHeight: isMobile ? '100dvh' : 'calc(100dvh - 50px)',
+            maxWidth: isMobile ? '100%' : '540px',
+            height: isMobile ? '100dvh' : 'min(90vh, 640px)',
+            maxHeight: isMobile ? '100dvh' : 'calc(100vh - 32px)',
             display: 'flex',
             flexDirection: 'column',
             background: '#0f172a',
             border: isMobile ? 'none' : '1px solid rgba(56, 189, 248, 0.35)',
             borderRadius: isMobile ? 0 : '16px',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            margin: isMobile ? 0 : 'auto',
+            boxSizing: 'border-box'
           }}>
             <div style={{
               padding: isMobile ? '14px 16px' : '16px 20px',
@@ -799,7 +842,7 @@ export default function AgendaView({
             </div>
 
             <form id="rdv-form" onSubmit={handleSubmit} style={{
-              padding: isMobile ? '14px 16px 24px 16px' : '18px',
+              padding: isMobile ? '14px 16px 20px 16px' : '16px 20px',
               display: 'flex',
               flexDirection: 'column',
               gap: '14px',
@@ -816,7 +859,6 @@ export default function AgendaView({
                   border: '1px solid rgba(56, 189, 248, 0.25)',
                   borderRadius: '10px',
                   padding: '12px 16px',
-                  marginBottom: '16px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between'
@@ -860,16 +902,22 @@ export default function AgendaView({
                   </span>
                 </div>
               ) : (
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                      Patient concerné <span style={{ color: '#f87171' }}>*</span>
+                <div style={{
+                  background: formData.patientId ? 'transparent' : 'rgba(15, 23, 42, 0.6)',
+                  border: patientError ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  padding: formData.patientId ? '0' : '12px',
+                  transition: 'border-color 0.2s'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '0.85rem', color: patientError ? '#f87171' : '#38bdf8', fontWeight: 600 }}>
+                      👤 Patient concerné <span style={{ color: '#f87171' }}>*</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => {
                         setShowModal(false);
-                        onNewPatient();
+                        onNewPatient && onNewPatient();
                       }}
                       style={{
                         background: 'transparent',
@@ -881,13 +929,13 @@ export default function AgendaView({
                         textDecoration: 'underline'
                       }}
                     >
-                      + Nouveau patient
+                      + Créer fiche complète
                     </button>
                   </div>
 
                   {formData.patientId && formData.patientName ? (
                     <div style={{
-                      background: '#0f172a',
+                      background: 'rgba(5, 150, 105, 0.12)',
                       border: '1px solid #059669',
                       padding: '10px 14px',
                       borderRadius: '8px',
@@ -895,18 +943,26 @@ export default function AgendaView({
                       alignItems: 'center',
                       justifyContent: 'space-between'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ color: '#4ade80' }}>✓</span>
-                        <strong style={{ color: '#f8fafc', fontSize: '0.95rem' }}>{formData.patientName}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ color: '#4ade80', fontSize: '1.1rem' }}>✓</span>
+                        <div>
+                          <strong style={{ color: '#f8fafc', fontSize: '0.95rem' }}>{formData.patientName}</strong>
+                          {formData.telephone && (
+                            <div style={{ fontSize: '0.8rem', color: '#38bdf8' }}>📞 {formData.telephone}</div>
+                          )}
+                        </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, patientId: '', patientName: '' }))}
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, patientId: '', patientName: '', telephone: '' }));
+                          setPatientError(false);
+                        }}
                         style={{
                           background: 'none',
                           border: 'none',
                           color: '#94a3b8',
-                          fontSize: '0.8rem',
+                          fontSize: '0.82rem',
                           cursor: 'pointer',
                           textDecoration: 'underline'
                         }}
@@ -920,59 +976,128 @@ export default function AgendaView({
                         type="text"
                         placeholder="Rechercher par nom, prénom, téléphone..."
                         value={searchPatient}
-                        onChange={(e) => setSearchPatient(e.target.value)}
+                        onChange={(e) => {
+                          setSearchPatient(e.target.value);
+                          if (patientError) setPatientError(false);
+                        }}
                         style={{
                           width: '100%',
-                          padding: '8px 12px',
+                          padding: '10px 12px',
                           borderRadius: '8px',
                           background: '#1e293b',
-                          border: '1px solid #334155',
+                          border: patientError ? '1px solid #ef4444' : '1px solid #334155',
                           color: '#fff',
                           marginBottom: '8px',
-                          fontSize: '0.85rem'
+                          fontSize: '0.88rem',
+                          boxSizing: 'border-box'
                         }}
+                        autoFocus
                       />
+
+                      {patientError && (
+                        <div style={{ color: '#f87171', fontSize: '0.8rem', marginBottom: '8px', fontWeight: 600 }}>
+                          ⚠️ Veuillez sélectionner ou indiquer un patient pour ce rendez-vous.
+                        </div>
+                      )}
+
                       <div style={{
-                        maxHeight: '140px',
+                        maxHeight: '130px',
                         overflowY: 'auto',
                         border: '1px solid #334155',
                         borderRadius: '8px',
                         background: '#0f172a'
                       }}>
                         {filteredPatients.length === 0 ? (
-                          <div style={{ padding: '10px', fontSize: '0.82rem', color: '#94a3b8', textAlign: 'center' }}>
-                            Aucun patient correspondant.
+                          <div style={{ padding: '12px', fontSize: '0.82rem', color: '#94a3b8', textAlign: 'center' }}>
+                            {searchPatient.trim() ? (
+                              <div>
+                                <p style={{ margin: '0 0 8px 0' }}>Aucun patient trouvé pour "{searchPatient}".</p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      patientId: 'direct_' + Date.now(),
+                                      patientName: searchPatient.trim()
+                                    }));
+                                    setPatientError(false);
+                                  }}
+                                  style={{
+                                    background: 'rgba(56, 189, 248, 0.15)',
+                                    border: '1px solid #38bdf8',
+                                    color: '#38bdf8',
+                                    borderRadius: '6px',
+                                    padding: '6px 12px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  + Utiliser "{searchPatient.trim()}" (Rendez-vous direct)
+                                </button>
+                              </div>
+                            ) : (
+                              "Tapez un nom pour rechercher un patient."
+                            )}
                           </div>
                         ) : (
-                          filteredPatients.map(p => (
-                            <div
-                              key={p.id}
-                              onClick={() => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  patientId: String(p.id),
-                                  patientName: p.fullname || `${p.nom} ${p.prenom}`
-                                }));
-                              }}
-                              style={{
-                                padding: '8px 12px',
-                                borderBottom: '1px solid #1e293b',
-                                cursor: 'pointer',
-                                fontSize: '0.85rem',
-                                color: '#e2e8f0',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = '#1e293b'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            >
-                              <span><strong>{p.nom}</strong> {p.prenom}</span>
-                              <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                                {p.telephone ? `📞 ${p.telephone}` : (p.numfch ? `N° ${p.numfch}` : '')}
-                              </span>
-                            </div>
-                          ))
+                          <>
+                            {filteredPatients.slice(0, 15).map(p => (
+                              <div
+                                key={p.id}
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    patientId: String(p.id),
+                                    patientName: p.fullname || `${p.nom} ${p.prenom}`,
+                                    telephone: p.telephone || ''
+                                  }));
+                                  setPatientError(false);
+                                }}
+                                style={{
+                                  padding: '8px 12px',
+                                  borderBottom: '1px solid #1e293b',
+                                  cursor: 'pointer',
+                                  fontSize: '0.85rem',
+                                  color: '#e2e8f0',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#1e293b'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                              >
+                                <span><strong>{p.nom}</strong> {p.prenom}</span>
+                                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                  {p.telephone ? `📞 ${p.telephone}` : (p.numfch ? `N° ${p.numfch}` : '')}
+                                </span>
+                              </div>
+                            ))}
+                            {searchPatient.trim() && (
+                              <div
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    patientId: 'direct_' + Date.now(),
+                                    patientName: searchPatient.trim()
+                                  }));
+                                  setPatientError(false);
+                                }}
+                                style={{
+                                  padding: '8px 12px',
+                                  background: 'rgba(56, 189, 248, 0.08)',
+                                  color: '#38bdf8',
+                                  fontSize: '0.82rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  textAlign: 'center',
+                                  borderTop: '1px dashed #334155'
+                                }}
+                              >
+                                + Nouveau patient direct : "{searchPatient.trim()}"
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -980,7 +1105,29 @@ export default function AgendaView({
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {/* Téléphone pour rappel SMS */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: '#94a3b8', marginBottom: '6px' }}>
+                  Numéro de téléphone portable {sendSmsReminder && <span style={{ color: '#4ade80', fontSize: '0.78rem' }}>(Requis pour SMS de rappel)</span>}
+                </label>
+                <input
+                  type="tel"
+                  value={formData.telephone || ''}
+                  onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                  placeholder="Ex: 53573117, 98123456..."
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#fff',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: '#94a3b8', marginBottom: '6px' }}>Date</label>
                   <input
@@ -990,11 +1137,12 @@ export default function AgendaView({
                     onChange={(e) => setFormData({ ...formData, rdvDate: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: '10px',
+                      padding: '9px 10px',
                       borderRadius: '8px',
                       background: '#1e293b',
                       border: '1px solid #334155',
-                      color: '#fff'
+                      color: '#fff',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
@@ -1007,11 +1155,12 @@ export default function AgendaView({
                     onChange={(e) => setFormData({ ...formData, rdvTime: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: '10px',
+                      padding: '9px 10px',
                       borderRadius: '8px',
                       background: '#1e293b',
                       border: '1px solid #334155',
-                      color: '#fff'
+                      color: '#fff',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
@@ -1026,11 +1175,12 @@ export default function AgendaView({
                   placeholder="Ex: Suivi APCI, Échographie, Contrôle..."
                   style={{
                     width: '100%',
-                    padding: '10px',
+                    padding: '9px 12px',
                     borderRadius: '8px',
                     background: '#1e293b',
                     border: '1px solid #334155',
-                    color: '#fff'
+                    color: '#fff',
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
@@ -1044,11 +1194,12 @@ export default function AgendaView({
                   placeholder="Instructions particulières..."
                   style={{
                     width: '100%',
-                    padding: '10px',
+                    padding: '9px 12px',
                     borderRadius: '8px',
                     background: '#1e293b',
                     border: '1px solid #334155',
-                    color: '#fff'
+                    color: '#fff',
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
@@ -1158,7 +1309,7 @@ export default function AgendaView({
               flexShrink: 0,
               background: '#0b1324',
               borderTop: '1px solid rgba(255, 255, 255, 0.12)',
-              padding: isMobile ? '12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) 16px' : '14px 20px',
+              padding: isMobile ? '12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) 16px' : '12px 20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
@@ -1172,7 +1323,7 @@ export default function AgendaView({
                 disabled={isSubmitting}
                 style={{
                   flex: isMobile ? 1 : 'none',
-                  padding: '12px 18px',
+                  padding: '10px 18px',
                   borderRadius: '8px',
                   background: 'rgba(255, 255, 255, 0.05)',
                   color: '#cbd5e1',
@@ -1191,7 +1342,7 @@ export default function AgendaView({
                 disabled={isSubmitting}
                 style={{
                   flex: isMobile ? 2 : 'none',
-                  padding: '12px 22px',
+                  padding: '10px 22px',
                   borderRadius: '8px',
                   background: isSubmitting 
                     ? '#475569' 
@@ -1237,20 +1388,23 @@ export default function AgendaView({
           justifyContent: 'center',
           zIndex: 100000,
           padding: isMobile ? 0 : '16px',
-          overflow: 'hidden'
+          overflowY: 'auto',
+          boxSizing: 'border-box'
         }}>
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
             maxWidth: isMobile ? '100%' : '520px',
-            height: isMobile ? '100dvh' : 'auto',
-            maxHeight: isMobile ? '100dvh' : 'calc(100dvh - 50px)',
+            height: isMobile ? '100dvh' : 'min(90vh, 640px)',
+            maxHeight: isMobile ? '100dvh' : 'calc(100vh - 32px)',
             display: 'flex',
             flexDirection: 'column',
             background: '#0f172a',
             border: isMobile ? 'none' : '1px solid rgba(56, 189, 248, 0.35)',
             borderRadius: isMobile ? 0 : '16px',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            margin: isMobile ? 0 : 'auto',
+            boxSizing: 'border-box'
           }}>
             <div style={{
               padding: isMobile ? '14px 16px' : '16px 20px',
