@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   getAppointments, 
   saveAppointment, 
@@ -788,7 +789,7 @@ export default function AgendaView({
       )}
 
       {/* Modal Ajout Rendez-vous */}
-      {showModal && (
+      {showModal && typeof document !== 'undefined' && createPortal(
         <div style={{
           position: 'fixed',
           top: 0,
@@ -800,7 +801,7 @@ export default function AgendaView({
           display: 'flex',
           alignItems: isMobile ? 'stretch' : 'center',
           justifyContent: 'center',
-          zIndex: 100000,
+          zIndex: 999999,
           padding: isMobile ? 0 : '16px',
           overflowY: 'auto',
           boxSizing: 'border-box'
@@ -808,7 +809,7 @@ export default function AgendaView({
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
             maxWidth: isMobile ? '100%' : '540px',
-            height: isMobile ? '100dvh' : 'min(90vh, 640px)',
+            height: isMobile ? '100dvh' : 'min(90vh, 620px)',
             maxHeight: isMobile ? '100dvh' : 'calc(100vh - 32px)',
             display: 'flex',
             flexDirection: 'column',
@@ -1371,10 +1372,11 @@ export default function AgendaView({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {/* Modal Configuration Passerelle Smartphone */}
-      {showSettingsModal && (
+      {showSettingsModal && typeof document !== 'undefined' && createPortal(
         <div style={{
           position: 'fixed',
           top: 0,
@@ -1386,7 +1388,7 @@ export default function AgendaView({
           display: 'flex',
           alignItems: isMobile ? 'stretch' : 'center',
           justifyContent: 'center',
-          zIndex: 100000,
+          zIndex: 999999,
           padding: isMobile ? 0 : '16px',
           overflowY: 'auto',
           boxSizing: 'border-box'
@@ -1394,7 +1396,7 @@ export default function AgendaView({
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
             maxWidth: isMobile ? '100%' : '520px',
-            height: isMobile ? '100dvh' : 'min(90vh, 640px)',
+            height: isMobile ? '100dvh' : 'min(90vh, 620px)',
             maxHeight: isMobile ? '100dvh' : 'calc(100vh - 32px)',
             display: 'flex',
             flexDirection: 'column',
@@ -1524,7 +1526,8 @@ export default function AgendaView({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

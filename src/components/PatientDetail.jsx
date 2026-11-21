@@ -489,9 +489,11 @@ export default function PatientDetail({
       {/* HISTORIQUE DE TOUTES LES CONSULTATIONS ANCIENNES DU PATIENT AVEC BOUTON D'OUVERTURE */}
       <div style={{
         background: '#0f172a',
-        padding: '20px',
+        padding: '16px 14px',
         borderRadius: '12px',
-        border: '1px solid rgba(255, 255, 255, 0.08)'
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#38bdf8' }}>
@@ -523,7 +525,7 @@ export default function PatientDetail({
             Aucune consultation enregistrée pour ce patient pour le moment.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', boxSizing: 'border-box' }}>
             {consultations.map((c) => (
               <div
                 key={c.id}
@@ -536,7 +538,9 @@ export default function PatientDetail({
                   borderRadius: '10px',
                   borderLeft: '4px solid #38bdf8',
                   transition: 'background 0.2s',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  width: '100%',
+                  boxSizing: 'border-box'
                 }}
               >
                 <div>
@@ -565,13 +569,16 @@ export default function PatientDetail({
                   flexWrap: 'wrap',
                   paddingTop: '10px',
                   marginTop: '4px',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.06)'
+                  borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                  width: '100%',
+                  boxSizing: 'border-box'
                 }}>
                   {Number(c.reposJours) > 0 && (
                     <button
                       onClick={() => generateMedicalRestCertificate(patient, c)}
                       style={{
-                        flex: '1 1 140px',
+                        flex: '1 1 120px',
+                        maxWidth: '100%',
                         minWidth: 0,
                         padding: '8px 12px',
                         borderRadius: '8px',
@@ -596,7 +603,8 @@ export default function PatientDetail({
                   <button
                     onClick={() => generateConsultationReport(patient, c)}
                     style={{
-                      flex: '1 1 130px',
+                      flex: '1 1 120px',
+                      maxWidth: '100%',
                       minWidth: 0,
                       padding: '8px 12px',
                       borderRadius: '8px',
@@ -620,7 +628,8 @@ export default function PatientDetail({
                   <button
                     onClick={() => onOpenConsultation && onOpenConsultation(patient, c)}
                     style={{
-                      flex: '1 1 140px',
+                      flex: '1 1 120px',
+                      maxWidth: '100%',
                       minWidth: 0,
                       padding: '8px 14px',
                       borderRadius: '8px',
