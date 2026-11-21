@@ -683,7 +683,7 @@ export default function App() {
         <span style={{ fontSize: '1.2rem' }}>💊</span>
         <div>
           <div>Prescriptions & DCI</div>
-          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Ordonnances & Base Avicenna</div>
+          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Ordonnances & Base Médocs</div>
         </div>
       </button>
 
@@ -1401,7 +1401,7 @@ export default function App() {
                   {activeTab === 'waiting' && "Salle d'Attente & Gestion du Flux en Temps Réel"}
                   {activeTab === 'agenda' && 'Agenda Médical & Planification des Rendez-Vous'}
                   {activeTab === 'consultation' && 'Consultations Médicales & Résumés PDF'}
-                  {activeTab === 'prescriptions' && 'Prescriptions & Ordonnances Médicales (Base Avicenna)'}
+                  {activeTab === 'prescriptions' && 'Prescriptions & Ordonnances Médicales (Base Médocs)'}
                   {activeTab === 'billing' && 'Facturation, Quittances & Bordereaux CNAM (Tiers-Payant)'}
                   {activeTab === 'tools' && 'DocPocket Mapa, MailPocket, SMS, Scores & Addicto'}
                   {activeTab === 'directory' && 'Réseau Médical Partagé & Orientation des Patients'}

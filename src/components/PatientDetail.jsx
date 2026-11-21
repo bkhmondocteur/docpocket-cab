@@ -671,7 +671,7 @@ export default function PatientDetail({
         )}
       </div>
 
-      {/* HISTORIQUE DES ORDONNANCES MÉDICALES DÉLIVRÉES AU PATIENT (AVICENNA) */}
+      {/* HISTORIQUE DES ORDONNANCES MÉDICALES DÉLIVRÉES AU PATIENT (MÉDOCS) */}
       <div style={{
         background: '#0f172a',
         padding: '20px',

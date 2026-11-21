@@ -633,7 +633,7 @@ export default function ConsultationView({
                 📄 Résumé PDF
               </button>
 
-              {/* Bouton vers Ordonnance Avicenna */}
+              {/* Bouton vers Ordonnance Médocs */}
               {onOpenPrescription && (
                 <button
                   type="button"
@@ -652,7 +652,7 @@ export default function ConsultationView({
                     gap: '6px',
                     boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
                   }}
-                  title="Rédiger une ordonnance pour ce patient (Base Avicenna)"
+                  title="Rédiger une ordonnance pour ce patient (Base Médocs)"
                 >
                   💊 Rédiger Ordonnance
                 </button>
@@ -1132,7 +1132,7 @@ export default function ConsultationView({
                     }}>
                       <div>
                         <div style={{ fontWeight: 600, color: '#38bdf8', fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>💊</span> Ordonnance Médicale (Base Avicenna)
+                          <span>💊</span> Ordonnance Médicale (Base Médocs)
                         </div>
                         <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
                           Délivrez le traitement adapté au diagnostic en cours avec posologie, DCI et APCI.
@@ -1282,7 +1282,7 @@ export default function ConsultationView({
                         gap: '8px',
                         boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
                       }}
-                      title="Rédiger une ordonnance pour ce patient (Base Avicenna)"
+                      title="Rédiger une ordonnance pour ce patient (Base Médocs)"
                     >
                       💊 Rédiger Ordonnance
                     </button>

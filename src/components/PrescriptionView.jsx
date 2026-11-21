@@ -11,8 +11,8 @@ import {
   filterMedicaments,
   getAllFormes,
   checkPrescriptionInteractions, 
-  getAvicennaStats 
-} from '../services/avicennaService';
+  getMedocsStats 
+} from '../services/medocsService';
 import { generatePrescriptionReport } from '../services/prescriptionReportGenerator';
 import { getPrescriptionSettings } from '../services/prescriptionSettingsService';
 import { APCI_LIST } from '../constants/medicalConstants';
@@ -56,8 +56,8 @@ export default function PrescriptionView({
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // MODE 2 : Grand Explorateur de la Base Médicamenteuse Avicenna
-  const [showAvicennaModal, setShowAvicennaModal] = useState(false);
+  // MODE 2 : Grand Explorateur de la Base Médicamenteuse Médocs
+  const [showMedocsModal, setShowMedocsModal] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
   const [explorerSearchBy, setExplorerSearchBy] = useState('all');
   const [explorerForme, setExplorerForme] = useState('');
@@ -70,7 +70,7 @@ export default function PrescriptionView({
 
   // Formes galéniques pour le filtre de l'explorateur
   const allFormes = getAllFormes();
-  const stats = getAvicennaStats();
+  const stats = getMedocsStats();
 
   // Initialisation patients
   useEffect(() => {
@@ -137,7 +137,7 @@ export default function PrescriptionView({
     setSearchResults(results);
   }, [searchQuery, searchBy]);
 
-  // Analyse en temps réel des interactions médicamenteuses Avicenna
+  // Analyse en temps réel des interactions médicamenteuses Médocs
   useEffect(() => {
     const warns = checkPrescriptionInteractions(items);
     setInteractions(warns);
@@ -180,7 +180,7 @@ export default function PrescriptionView({
       famille: med.famille || '',
       apci: Boolean(med.apci),
       posologie: med.poso || '1 prise x 3 / jour',
-      duree: '7 jours',
+      duree: med.duree || '7 jours',
       quantite: '1 boîte',
       consigne: ''
     };
@@ -218,7 +218,7 @@ export default function PrescriptionView({
     setSelectedMedsMap(new Map());
     setExplorerSearch('');
     setExplorerPage(1);
-    setShowAvicennaModal(true);
+    setShowMedocsModal(true);
   };
 
   // Mode 2 : Cocher / décocher un médicament un par un
@@ -238,7 +238,7 @@ export default function PrescriptionView({
   const handleConfirmExplorerSelection = () => {
     const selectedList = Array.from(selectedMedsMap.values());
     if (selectedList.length === 0) {
-      setShowAvicennaModal(false);
+      setShowMedocsModal(false);
       return;
     }
 
@@ -252,13 +252,13 @@ export default function PrescriptionView({
       famille: med.famille || '',
       apci: Boolean(med.apci),
       posologie: med.poso || '1 prise x 3 / jour',
-      duree: '7 jours',
+      duree: med.duree || '7 jours',
       quantite: '1 boîte',
       consigne: ''
     }));
 
     setItems(prev => [...prev, ...newItems]);
-    setShowAvicennaModal(false);
+    setShowMedocsModal(false);
     setSelectedMedsMap(new Map());
   };
 
@@ -394,7 +394,7 @@ export default function PrescriptionView({
               Prescriptions & Ordonnances Médicales
             </h1>
             <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-              Base Médicamenteuse Avicenna ({stats.totalMedicaments.toLocaleString()} médicaments • {stats.totalInteractions.toLocaleString()} règles d'interactions)
+              Base Médicamenteuse Médocs ({stats.totalMedicaments.toLocaleString()} médicaments • {stats.totalInteractions.toLocaleString()} règles d'interactions)
             </span>
           </div>
         </div>
@@ -633,7 +633,7 @@ export default function PrescriptionView({
               border: '1px solid rgba(255, 255, 255, 0.08)',
               padding: '18px'
             }}>
-              {/* Entête avec Bouton d'accès au Mode 2 (Grand Explorateur Avicenna) */}
+              {/* Entête avec Bouton d'accès au Mode 2 (Grand Explorateur Médocs) */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                   <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f8fafc' }}>
@@ -698,9 +698,9 @@ export default function PrescriptionView({
                     gap: '6px',
                     boxShadow: '0 2px 8px rgba(5, 150, 105, 0.35)'
                   }}
-                  title="Ouvrir le dictionnaire complet Avicenna et sélectionner les médicaments un par un"
+                  title="Ouvrir le dictionnaire complet Médocs et sélectionner les médicaments un par un"
                 >
-                  📚 Ouvrir la Base Médicamenteuse Avicenna
+                  📚 Ouvrir la Base Médicamenteuse Médocs
                 </button>
               </div>
 
@@ -752,7 +752,7 @@ export default function PrescriptionView({
                   </button>
                 </form>
 
-                {/* Suggestions déroulantes Avicenna (Mode 1) */}
+                {/* Suggestions déroulantes Médocs (Mode 1) */}
                 {isSearching && searchResults.length > 0 && (
                   <div style={{
                     position: 'absolute',
@@ -810,7 +810,7 @@ export default function PrescriptionView({
               </div>
             </div>
 
-            {/* ALERTE D'INTERACTION MÉDICAMENTEUSE EN TEMPS RÉEL (BASE AVICENNA) */}
+            {/* ALERTE D'INTERACTION MÉDICAMENTEUSE EN TEMPS RÉEL (BASE MÉDOCS) */}
             {interactions.length > 0 && (
               <div style={{
                 background: 'rgba(220, 38, 38, 0.12)',
@@ -823,7 +823,7 @@ export default function PrescriptionView({
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontWeight: 700 }}>
                   <span style={{ fontSize: '1.2rem' }}>⚠️</span>
-                  <span>Alerte d'Interaction Médicamenteuse (Base Avicenna)</span>
+                  <span>Alerte d'Interaction Médicamenteuse (Base Médocs)</span>
                 </div>
                 {interactions.map((warn, index) => (
                   <div key={index} style={{ fontSize: '0.85rem', color: '#fecaca', borderTop: index > 0 ? '1px dashed rgba(239, 68, 68, 0.3)' : 'none', paddingTop: index > 0 ? '6px' : '0' }}>
@@ -863,7 +863,7 @@ export default function PrescriptionView({
 
               {items.length === 0 ? (
                 <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-                  L'ordonnance est vide. Utilisez la saisie libre ci-dessus ou cliquez sur <strong>« Ouvrir la Base Médicamenteuse Avicenna »</strong> pour ajouter des médicaments.
+                  L'ordonnance est vide. Utilisez la saisie libre ci-dessus ou cliquez sur <strong>« Ouvrir la Base Médicamenteuse Médocs »</strong> pour ajouter des médicaments.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -1405,8 +1405,8 @@ export default function PrescriptionView({
         </div>
       )}
 
-      {/* MODE 2 : GRAND EXPLORATEUR DE LA BASE MÉDICAMENTEUSE AVICENNA (MODAL PLEIN ÉCRAN) */}
-      {showAvicennaModal && (
+      {/* MODE 2 : GRAND EXPLORATEUR DE LA BASE MÉDICAMENTEUSE MÉDOCS (MODAL PLEIN ÉCRAN) */}
+      {showMedocsModal && (
         <div style={{
           position: 'fixed',
           inset: 0,
@@ -1440,7 +1440,7 @@ export default function PrescriptionView({
             }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.2rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📚</span> Explorateur Base Avicenna
+                  <span>📚</span> Explorateur Base Médocs
                 </h2>
                 <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                   Cochez les médicaments un par un puis validez
@@ -1448,7 +1448,7 @@ export default function PrescriptionView({
               </div>
               <button
                 type="button"
-                onClick={() => setShowAvicennaModal(false)}
+                onClick={() => setShowMedocsModal(false)}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -1536,7 +1536,7 @@ export default function PrescriptionView({
               </label>
             </div>
 
-            {/* Tableau des médicaments Avicenna avec sélection un par un */}
+            {/* Tableau des médicaments Médocs avec sélection un par un */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '0' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead>
@@ -1668,7 +1668,7 @@ export default function PrescriptionView({
 
                 <button
                   type="button"
-                  onClick={() => setShowAvicennaModal(false)}
+                  onClick={() => setShowMedocsModal(false)}
                   style={{
                     padding: '8px 16px',
                     borderRadius: '8px',
