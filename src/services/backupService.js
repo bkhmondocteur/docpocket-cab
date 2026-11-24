@@ -4,11 +4,15 @@ import {
   getAllPrescriptions,
   getAllInvoices,
   getAllBordereaux,
+  getAllCertificates,
   savePatient,
   saveConsultation,
   savePrescription,
   saveInvoice,
-  saveBordereau
+  saveBordereau,
+  saveCertificate,
+  setSyncImporting,
+  notifyDataChanged
 } from './patientStorage';
 import { writeBackupFileToFolder } from './backupFolderService';
 
@@ -156,12 +160,13 @@ export function parseSqlDump(sqlContent) {
 // 3. SAUVEGARDE NATIVE DOCPOCKET CAB (.JSON)
 // ==============================================================
 export async function exportDocPocketBackup() {
-  const [patients, consultations, prescriptions, invoices, bordereaux] = await Promise.all([
+  const [patients, consultations, prescriptions, invoices, bordereaux, certificates] = await Promise.all([
     getAllPatients(),
     getAllConsultations(),
     getAllPrescriptions(),
     getAllInvoices(),
-    getAllBordereaux()
+    getAllBordereaux(),
+    getAllCertificates()
   ]);
 
   const doctorProfile = JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}');
@@ -172,14 +177,15 @@ export async function exportDocPocketBackup() {
 
   const backupData = {
     app: 'DocPocket Cab',
-    schemaVersion: 6,
+    schemaVersion: 7,
     exportedAt: now.toISOString(),
     stats: {
       patientsCount: patients.length,
       consultationsCount: consultations.length,
       prescriptionsCount: prescriptions.length,
       invoicesCount: invoices.length,
-      bordereauxCount: bordereaux.length
+      bordereauxCount: bordereaux.length,
+      certificatesCount: certificates.length
     },
     doctorProfile,
     data: {
@@ -187,7 +193,8 @@ export async function exportDocPocketBackup() {
       consultations,
       prescriptions,
       invoices,
-      bordereaux
+      bordereaux,
+      certificates
     }
   };
 
@@ -213,55 +220,72 @@ export async function restoreDocPocketBackup(jsonObj, mode = 'merge', onProgress
     throw new Error("Format de fichier de sauvegarde DocPocket Cab invalide.");
   }
 
-  const { patients = [], consultations = [], prescriptions = [], invoices = [], bordereaux = [] } = jsonObj.data;
-  let importedCount = { patients: 0, consultations: 0, prescriptions: 0, invoices: 0 };
+  const { patients = [], consultations = [], prescriptions = [], invoices = [], bordereaux = [], certificates = [] } = jsonObj.data;
+  let importedCount = { patients: 0, consultations: 0, prescriptions: 0, invoices: 0, certificates: 0 };
 
   // Profil médecin
   if (jsonObj.doctorProfile) {
     localStorage.setItem('docpocket_doctor_profile', JSON.stringify(jsonObj.doctorProfile));
   }
 
-  // Patients
-  onProgress("Importation des dossiers patients...");
-  for (const pat of patients) {
-    const item = { ...pat };
-    if (mode === 'merge') delete item.id;
-    await savePatient(item);
-    importedCount.patients++;
-  }
+  setSyncImporting(true);
+  try {
+    // Patients
+    onProgress("Importation des dossiers patients...");
+    for (const pat of patients) {
+      const item = { ...pat };
+      if (mode === 'merge') delete item.id;
+      await savePatient(item);
+      importedCount.patients++;
+    }
 
-  // Consultations
-  onProgress("Importation des consultations...");
-  for (const c of consultations) {
-    const item = { ...c };
-    if (mode === 'merge') delete item.id;
-    await saveConsultation(item);
-    importedCount.consultations++;
-  }
+    // Consultations
+    onProgress("Importation des consultations...");
+    for (const c of consultations) {
+      const item = { ...c };
+      if (mode === 'merge') delete item.id;
+      await saveConsultation(item);
+      importedCount.consultations++;
+    }
 
-  // Prescriptions
-  onProgress("Importation des ordonnances...");
-  for (const p of prescriptions) {
-    const item = { ...p };
-    if (mode === 'merge') delete item.id;
-    await savePrescription(item);
-    importedCount.prescriptions++;
-  }
+    // Prescriptions
+    onProgress("Importation des ordonnances...");
+    for (const p of prescriptions) {
+      const item = { ...p };
+      if (mode === 'merge') delete item.id;
+      await savePrescription(item);
+      importedCount.prescriptions++;
+    }
 
-  // Invoices
-  onProgress("Importation des quittances & factures...");
-  for (const inv of invoices) {
-    const item = { ...inv };
-    if (mode === 'merge') delete item.id;
-    await saveInvoice(item);
-    importedCount.invoices++;
-  }
+    // Invoices
+    onProgress("Importation des quittances & factures...");
+    for (const inv of invoices) {
+      const item = { ...inv };
+      if (mode === 'merge') delete item.id;
+      await saveInvoice(item);
+      importedCount.invoices++;
+    }
 
-  // Bordereaux
-  for (const b of bordereaux) {
-    const item = { ...b };
-    if (mode === 'merge') delete item.id;
-    await saveBordereau(item);
+    // Bordereaux
+    for (const b of bordereaux) {
+      const item = { ...b };
+      if (mode === 'merge') delete item.id;
+      await saveBordereau(item);
+    }
+
+    // Certificats & Attestations
+    if (certificates && certificates.length > 0) {
+      onProgress("Importation des certificats & attestations...");
+      for (const cert of certificates) {
+        const item = { ...cert };
+        if (mode === 'merge') delete item.id;
+        await saveCertificate(item);
+        importedCount.certificates++;
+      }
+    }
+  } finally {
+    setSyncImporting(false);
+    notifyDataChanged('restore_complete');
   }
 
   onProgress("Restauration terminée avec succès !");
@@ -282,8 +306,10 @@ export async function restoreLegacyBackupZip(arrayBuffer, mode = 'merge', onProg
 
   onProgress("Extraction et analyse des tables SQL de la base...");
 
-  // 1. Parser les patients
-  const rawPatients = parseSqlDump(files['patient_id.sql'] || '');
+  setSyncImporting(true);
+  try {
+    // 1. Parser les patients
+    const rawPatients = parseSqlDump(files['patient_id.sql'] || '');
   onProgress(`Lecture de ${rawPatients.length} fiches patients...`);
 
   // Map des patients créés pour lier les consultations par uid
@@ -472,6 +498,11 @@ export async function restoreLegacyBackupZip(arrayBuffer, mode = 'merge', onProg
     } catch (e) {
       // ignore
     }
+  }
+
+  } finally {
+    setSyncImporting(false);
+    notifyDataChanged('legacy_restore_complete');
   }
 
   onProgress("Importation terminée !");

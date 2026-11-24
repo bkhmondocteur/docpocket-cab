@@ -2,7 +2,7 @@
 import historicalBordereaux from '../data/historicalBordereaux.json';
 import { getActiveDBName, getActivePractitionerId, getActivePractitioner } from './practitionerService';
 
-const DB_VERSION = 6; // Montée de version pour Facturation, Quittances & Bordereaux CNAM (Bloc 5)
+const DB_VERSION = 7; // Montée de version pour Certificats & Attestations Médicales (Bloc 6)
 
 const STORE_PATIENTS = 'patients';
 const STORE_WAITING = 'waiting_room';
@@ -11,11 +11,17 @@ const STORE_CONSULTATIONS = 'consultations';
 const STORE_PRESCRIPTIONS = 'prescriptions';
 const STORE_INVOICES = 'invoices';
 const STORE_BORDEREAUX = 'cnam_bordereaux';
+const STORE_CERTIFICATES = 'certificates';
 
 // ==============================================================
 // SYSTÈME DE NOTIFICATION DES MODIFICATIONS (AUTO-BACKUP HOOK)
 // ==============================================================
 const dataChangeListeners = new Set();
+let isSyncImporting = false;
+
+export function setSyncImporting(active) {
+  isSyncImporting = Boolean(active);
+}
 
 export function onDataChange(listener) {
   dataChangeListeners.add(listener);
@@ -23,6 +29,7 @@ export function onDataChange(listener) {
 }
 
 export function notifyDataChanged(action, details = {}) {
+  if (isSyncImporting) return; // Mode silencieux haute performance pendant la synchronisation par lots
   try {
     localStorage.setItem('docpocket_last_local_write', String(Date.now()));
   } catch (e) {
@@ -103,6 +110,14 @@ function openDB() {
         bordStore.createIndex('numBordereau', 'numBordereau', { unique: false });
         bordStore.createIndex('dateCreation', 'dateCreation', { unique: false });
         bordStore.createIndex('statut', 'statut', { unique: false });
+      }
+
+      // Store Certificats & Attestations Médicales (Bloc 6)
+      if (!db.objectStoreNames.contains(STORE_CERTIFICATES)) {
+        const certStore = db.createObjectStore(STORE_CERTIFICATES, { keyPath: 'id', autoIncrement: true });
+        certStore.createIndex('patientId', 'patientId', { unique: false });
+        certStore.createIndex('date', 'date', { unique: false });
+        certStore.createIndex('type', 'type', { unique: false });
       }
     };
 
@@ -1558,4 +1573,82 @@ export function clearUnsettledConsultation() {
   try {
     localStorage.removeItem(getUnsettledStorageKey());
   } catch (e) {}
+}
+
+// ==============================================================
+// GESTION DES CERTIFICATS & ATTESTATIONS MÉDICALES (BLOC 6)
+// ==============================================================
+export async function getAllCertificates() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    if (!db.objectStoreNames.contains(STORE_CERTIFICATES)) {
+      resolve([]);
+      return;
+    }
+    const tx = db.transaction(STORE_CERTIFICATES, 'readonly');
+    const store = tx.objectStore(STORE_CERTIFICATES);
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getCertificatesByPatient(patientId) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    if (!db.objectStoreNames.contains(STORE_CERTIFICATES)) {
+      resolve([]);
+      return;
+    }
+    const tx = db.transaction(STORE_CERTIFICATES, 'readonly');
+    const store = tx.objectStore(STORE_CERTIFICATES);
+    const req = store.getAll();
+    req.onsuccess = () => {
+      const all = req.result || [];
+      const pid = String(patientId);
+      const filtered = all.filter(c => String(c.patientId) === pid);
+      filtered.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+      resolve(filtered);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveCertificate(cert) {
+  const db = await openDB();
+  const item = {
+    ...cert,
+    updatedAt: new Date().toISOString()
+  };
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_CERTIFICATES, 'readwrite');
+    const store = tx.objectStore(STORE_CERTIFICATES);
+    let req;
+    if (item.id) {
+      req = store.put(item);
+    } else {
+      item.createdAt = item.createdAt || new Date().toISOString();
+      req = store.add(item);
+    }
+    req.onsuccess = () => {
+      const saved = { ...item, id: item.id || req.result };
+      notifyDataChanged('save_certificate', { certificate: saved });
+      resolve(saved);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteCertificate(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_CERTIFICATES, 'readwrite');
+    const store = tx.objectStore(STORE_CERTIFICATES);
+    const req = store.delete(Number(id) || id);
+    req.onsuccess = () => {
+      notifyDataChanged('delete_certificate', { id });
+      resolve(true);
+    };
+    req.onerror = () => reject(req.error);
+  });
 }

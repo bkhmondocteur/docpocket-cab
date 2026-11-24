@@ -843,16 +843,24 @@ export default function AgendaView({
             </div>
 
             <form id="rdv-form" onSubmit={handleSubmit} style={{
-              padding: isMobile ? '14px 16px 20px 16px' : '16px 20px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '14px',
               flex: 1,
               minHeight: 0,
-              overflowY: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              overscrollBehavior: 'contain'
+              overflow: 'hidden',
+              margin: 0
             }}>
+              <div style={{
+                padding: isMobile ? '14px 16px 20px 16px' : '16px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px',
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehavior: 'contain'
+              }}>
               {/* Sélection du patient : Automatique si venant de la consultation, sinon sélection manuelle */}
               {initialPatient ? (
                 <div style={{
@@ -1303,74 +1311,74 @@ export default function AgendaView({
                 </div>
               )}
 
-            </form>
+              </div>
 
-            {/* Pied de page fixe - Boutons TOUJOURS 100% VISIBLES EN BAS DU MODAL */}
-            <div style={{
-              flexShrink: 0,
-              background: '#0b1324',
-              borderTop: '1px solid rgba(255, 255, 255, 0.12)',
-              padding: isMobile ? '12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) 16px' : '12px 20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: '12px',
-              boxShadow: '0 -6px 20px rgba(0, 0, 0, 0.6)',
-              zIndex: 10
-            }}>
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                disabled={isSubmitting}
-                style={{
-                  flex: isMobile ? 1 : 'none',
-                  padding: '10px 18px',
-                  borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: '#cbd5e1',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  textAlign: 'center'
-                }}
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                form="rdv-form"
-                disabled={isSubmitting}
-                style={{
-                  flex: isMobile ? 2 : 'none',
-                  padding: '10px 22px',
-                  borderRadius: '8px',
-                  background: isSubmitting 
-                    ? '#475569' 
-                    : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  border: 'none',
-                  cursor: isSubmitting ? 'wait' : 'pointer',
-                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-              >
-                {isSubmitting ? (
-                  <>
-                    <span style={{ display: 'inline-block' }}>⏳</span> Enregistrement...
-                  </>
-                ) : (
-                  <>
-                    <span>✓</span> {formData.id ? 'Enregistrer les modifications' : 'Enregistrer le rendez-vous'}
-                  </>
-                )}
-              </button>
-            </div>
+              {/* Pied de page fixe - Boutons TOUJOURS 100% VISIBLES EN BAS DU MODAL */}
+              <div style={{
+                flexShrink: 0,
+                background: '#0b1324',
+                borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+                padding: isMobile ? '12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) 16px' : '12px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                boxShadow: '0 -6px 20px rgba(0, 0, 0, 0.6)',
+                zIndex: 10
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  disabled={isSubmitting}
+                  style={{
+                    flex: isMobile ? 1 : 'none',
+                    padding: '10px 18px',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    color: '#cbd5e1',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    textAlign: 'center'
+                  }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{
+                    flex: isMobile ? 2 : 'none',
+                    padding: '10px 22px',
+                    borderRadius: '8px',
+                    background: isSubmitting 
+                      ? '#475569' 
+                      : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    border: 'none',
+                    cursor: isSubmitting ? 'wait' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <span style={{ display: 'inline-block' }}>⏳</span> Enregistrement...
+                    </>
+                  ) : (
+                    <>
+                      <span>✓</span> {formData.id ? 'Enregistrer les modifications' : 'Enregistrer le rendez-vous'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

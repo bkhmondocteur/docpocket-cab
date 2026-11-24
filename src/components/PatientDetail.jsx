@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { getConsultationsByPatient, getPrescriptionsByPatient, getInvoicesByPatient, deleteInvoiceById } from '../services/patientStorage';
+import {
+  getConsultationsByPatient,
+  getPrescriptionsByPatient,
+  getInvoicesByPatient,
+  getCertificatesByPatient,
+  deleteInvoiceById
+} from '../services/patientStorage';
 import { generateConsultationReport } from '../services/reportGenerator';
 import { generatePrescriptionReport } from '../services/prescriptionReportGenerator';
 import { generateReceiptReport } from '../services/receiptReportGenerator';
 import { generateMedicalRestCertificate } from '../services/certificateReportGenerator';
 import DeleteConsultationModal from './DeleteConsultationModal';
+import CertificateModal from './CertificateModal';
 import {
   getAllPractitioners,
   getActivePractitioner,
@@ -31,25 +38,29 @@ export default function PatientDetail({
   const [consultations, setConsultations] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [certificates, setCertificates] = useState([]);
   const [loadingConsults, setLoadingConsults] = useState(true);
   const [showColleagueModal, setShowColleagueModal] = useState(false);
   const [consultationToDelete, setConsultationToDelete] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [showCertifModal, setShowCertifModal] = useState(false);
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
         setLoadingConsults(true);
-        const [cList, pList, iList] = await Promise.all([
+        const [cList, pList, iList, certList] = await Promise.all([
           getConsultationsByPatient(patient.id),
           getPrescriptionsByPatient(patient.id),
-          getInvoicesByPatient(patient.id)
+          getInvoicesByPatient(patient.id),
+          getCertificatesByPatient(patient.id)
         ]);
         setConsultations(cList);
         setPrescriptions(pList);
         setInvoices(iList);
+        setCertificates(certList);
       } catch (e) {
-        console.error("Erreur historique consultations/ordonnances/factures patient:", e);
+        console.error("Erreur historique consultations/ordonnances/factures/certificats patient:", e);
       } finally {
         setLoadingConsults(false);
       }
@@ -213,6 +224,25 @@ export default function PatientDetail({
               ⏱️ Attente
             </button>
           )}
+
+          <button
+            onClick={() => setShowCertifModal(true)}
+            style={{
+              padding: '9px 14px',
+              borderRadius: '8px',
+              background: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.4)',
+              color: '#fbbf24',
+              cursor: 'pointer',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title="Rédiger un certificat médical (repos, aptitude physique, CMI, accompagnement, présence...)"
+          >
+            <span>📜</span> Certificats
+          </button>
 
           {onMerge && (
             <button
@@ -945,6 +975,135 @@ export default function PatientDetail({
         )}
       </div>
 
+      {/* Section 4 : Certificats & Attestations Médicales Délivrés */}
+      <div style={{
+        background: '#0f172a',
+        padding: '24px',
+        borderRadius: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.08)'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingBottom: '12px',
+          flexWrap: 'wrap',
+          gap: '10px'
+        }}>
+          <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>📜</span> Certificats & Attestations Délivrés ({certificates.length})
+          </h3>
+          <button
+            onClick={() => setShowCertifModal(true)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            + Rédiger un Certificat
+          </button>
+        </div>
+
+        {certificates.length === 0 ? (
+          <div style={{
+            padding: '30px 20px',
+            textAlign: 'center',
+            color: '#64748b',
+            background: 'rgba(255, 255, 255, 0.02)',
+            borderRadius: '8px',
+            border: '1px dashed rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '1.8rem' }}>📜</span>
+            <span style={{ fontWeight: 500, color: '#94a3b8' }}>Aucun certificat médical rédigé pour ce patient</span>
+            <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+              Vous pouvez rédiger et imprimer en 1 clic un certificat de repos, d'aptitude sportive, CMI, fit to fly ou attestation de présence.
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {certificates.map((cert) => (
+              <div
+                key={cert.id}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  background: '#1e293b',
+                  padding: '14px 16px',
+                  borderRadius: '10px',
+                  borderLeft: '4px solid #f59e0b',
+                  overflow: 'hidden'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ flex: 1, minWidth: '220px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <strong style={{ color: '#fff', fontSize: '0.95rem' }}>📅 {cert.date}</strong>
+                      <span style={{ fontSize: '0.9rem', color: '#fbbf24', fontWeight: 700 }}>
+                        {cert.title}
+                      </span>
+                      {cert.dureeJours && (
+                        <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', fontWeight: 600 }}>
+                          {cert.dureeJours} jours
+                        </span>
+                      )}
+                    </div>
+                    {cert.content && (
+                      <div style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: '6px', whiteSpace: 'pre-line', maxHeight: '70px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {cert.content.slice(0, 220)}...
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const printWindow = window.open('', '_blank', 'width=800,height=900');
+                      if (printWindow) {
+                        printWindow.document.write(`
+                          <!DOCTYPE html><html><head><meta charset="utf-8"/><title>${cert.title}</title>
+                          <style>body{font-family:sans-serif;padding:30px;white-space:pre-line;line-height:1.7;font-size:14px;}</style>
+                          </head><body><h2 style="text-align:center;color:#0369a1;">${cert.title}</h2><hr/>${cert.content}
+                          <script>window.onload=function(){window.print();};</script>
+                          </body></html>
+                        `);
+                        printWindow.document.close();
+                      }
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      color: '#38bdf8',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      alignSelf: 'flex-start'
+                    }}
+                  >
+                    🖨️ Réimprimer
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Modal Sélection Confrère pour Copie Dossier */}
       {showColleagueModal && (
         <div style={{
@@ -1080,6 +1239,19 @@ export default function PatientDetail({
           setConsultations(prev => prev.filter(c => c.id !== deletedId));
           setIsDeleteModalOpen(false);
           setConsultationToDelete(null);
+        }}
+      />
+
+      {/* Modal de rédaction de Certificats & Attestations */}
+      <CertificateModal
+        isOpen={showCertifModal}
+        patient={patient}
+        onClose={() => setShowCertifModal(false)}
+        onCertificateSaved={async (newCert) => {
+          try {
+            const certList = await getCertificatesByPatient(patient.id);
+            setCertificates(certList);
+          } catch (e) {}
         }}
       />
     </div>

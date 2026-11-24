@@ -18,6 +18,7 @@ import {
   filterDiagnosticSuggestions 
 } from '../services/clinicalSuggestionsService';
 import DeleteConsultationModal from './DeleteConsultationModal';
+import CertificateModal from './CertificateModal';
 
 export default function ConsultationView({ 
   initialPatient = null, 
@@ -40,6 +41,7 @@ export default function ConsultationView({
   // État pour la suppression sécurisée d'une consultation par code PIN
   const [consultationToDelete, setConsultationToDelete] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [showCertifModal, setShowCertifModal] = useState(false);
 
   const handleRequestDeleteConsultation = (consult) => {
     setConsultationToDelete(consult);
@@ -1418,6 +1420,30 @@ export default function ConsultationView({
                   </button>
 
                   <button
+                    type="button"
+                    onClick={() => setShowCertifModal(true)}
+                    style={{
+                      flex: isMobile ? '1 1 100%' : 'none',
+                      padding: '12px 20px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                      color: '#fff',
+                      fontWeight: 600,
+                      fontSize: '0.95rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)'
+                    }}
+                    title="Rédiger un certificat de repos, aptitude physique, CMI, accompagnement, présence..."
+                  >
+                    📜 Certificats & Attestations
+                  </button>
+
+                  <button
                     type="submit"
                     disabled={saving}
                     style={{
@@ -1588,6 +1614,14 @@ export default function ConsultationView({
           setConsultationToDelete(null);
         }}
         onDeleted={handleConsultationDeleted}
+      />
+
+      {/* Modal de rédaction de Certificats & Attestations */}
+      <CertificateModal
+        isOpen={showCertifModal}
+        patient={selectedPatient}
+        consultation={formData}
+        onClose={() => setShowCertifModal(false)}
       />
     </div>
   );

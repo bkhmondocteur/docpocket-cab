@@ -9,6 +9,7 @@ import {
   getAllPrescriptions,
   getAllInvoices,
   getAllBordereaux,
+  getAllCertificates,
   onDataChange,
   isDemoDatabase
 } from './patientStorage';
@@ -121,12 +122,13 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
   notifySubscribers();
 
   try {
-    const [patients, consultations, prescriptions, invoices, bordereaux] = await Promise.all([
+    const [patients, consultations, prescriptions, invoices, bordereaux, certificates] = await Promise.all([
       getAllPatients(),
       getAllConsultations(),
       getAllPrescriptions(),
       getAllInvoices(),
-      getAllBordereaux()
+      getAllBordereaux(),
+      getAllCertificates()
     ]);
 
     const doctorProfile = JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}');
@@ -135,7 +137,7 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
 
     const backupPayload = {
       app: 'DocPocket Cab',
-      schemaVersion: 6,
+      schemaVersion: 7,
       backupType: 'auto_backup',
       triggerReason: reason,
       exportedAt: now.toISOString(),
@@ -144,7 +146,8 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
         consultationsCount: consultations.length,
         prescriptionsCount: prescriptions.length,
         invoicesCount: invoices.length,
-        bordereauxCount: bordereaux.length
+        bordereauxCount: bordereaux.length,
+        certificatesCount: certificates.length
       },
       doctorProfile,
       data: {
@@ -152,7 +155,8 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
         consultations,
         prescriptions,
         invoices,
-        bordereaux
+        bordereaux,
+        certificates
       }
     };
 

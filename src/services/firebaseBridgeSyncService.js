@@ -9,11 +9,15 @@ import {
   getAllPrescriptions,
   getAllInvoices,
   getAllBordereaux,
+  getAllCertificates,
   savePatient,
   saveConsultation,
   savePrescription,
   saveInvoice,
   saveBordereau,
+  saveCertificate,
+  setSyncImporting,
+  notifyDataChanged,
   isDemoDatabase,
   clearDemoDataIfPresent
 } from './patientStorage';
@@ -655,16 +659,18 @@ export async function smartDeduplicatingMerge(incomingData, onProgress = () => {
     consultations: inConsults = [],
     prescriptions: inPrescs = [],
     invoices: inInvoices = [],
-    bordereaux: inBords = []
+    bordereaux: inBords = [],
+    certificates: inCerts = []
   } = incomingData.data;
 
   onProgress("Chargement de la base locale...");
-  const [localPatients, localConsults, localPrescs, localInvoices, localBords] = await Promise.all([
+  const [localPatients, localConsults, localPrescs, localInvoices, localBords, localCerts] = await Promise.all([
     getAllPatients(),
     getAllConsultations(),
     getAllPrescriptions(),
     getAllInvoices(),
-    getAllBordereaux()
+    getAllBordereaux(),
+    getAllCertificates()
   ]);
 
   const mergeReport = {
@@ -673,8 +679,12 @@ export async function smartDeduplicatingMerge(incomingData, onProgress = () => {
     newConsultations: 0,
     updatedConsultations: 0,
     newPrescriptions: 0,
-    newInvoices: 0
+    newInvoices: 0,
+    newCertificates: 0
   };
+
+  setSyncImporting(true);
+  try {
 
   // 1. Table de correspondance des patients : incomingPatientId -> localPatientId
   const patientIdMap = new Map();
@@ -823,10 +833,26 @@ export async function smartDeduplicatingMerge(incomingData, onProgress = () => {
     }
   }
 
-  // 6. Synchronisation automatique de la licence DocPocket SMS RDV sur mobile si PC activé
-  if (backupData?.smsRdvLicense) {
+  // 6. Certificats & Attestations Médicales
+  if (inCerts && inCerts.length > 0) {
+    const certLookup = new Set(localCerts.map(c => String(c.id)));
+    for (const ic of inCerts) {
+      const mappedPatientId = patientIdMap.get(String(ic.patientId)) || String(ic.patientId);
+      if (!certLookup.has(String(ic.id))) {
+        await saveCertificate({
+          ...ic,
+          patientId: mappedPatientId
+        });
+        certLookup.add(String(ic.id));
+        mergeReport.newCertificates++;
+      }
+    }
+  }
+
+  // 7. Synchronisation automatique de la licence DocPocket SMS RDV sur mobile si PC activé
+  if (incomingData?.smsRdvLicense) {
     try {
-      const autoActivated = autoActivateSmsOnMobile(backupData.smsRdvLicense);
+      const autoActivated = autoActivateSmsOnMobile(incomingData.smsRdvLicense);
       if (autoActivated) {
         notifyBridgeSubscribers({
           type: 'SMS_LICENSE_SYNCED',
@@ -840,6 +866,10 @@ export async function smartDeduplicatingMerge(incomingData, onProgress = () => {
 
   onProgress("✓ Synchronisation terminée avec succès !");
   return mergeReport;
+  } finally {
+    setSyncImporting(false);
+    notifyDataChanged('bridge_sync_complete');
+  }
 }
 
 // ==============================================================
@@ -1098,29 +1128,31 @@ async function handleIncomingSignal(signal) {
       });
 
       // Le PC prépare et envoie immédiatement sa dernière sauvegarde
-      const [patients, consultations, prescriptions, invoices, bordereaux] = await Promise.all([
+      const [patients, consultations, prescriptions, invoices, bordereaux, certificates] = await Promise.all([
         getAllPatients(),
         getAllConsultations(),
         getAllPrescriptions(),
         getAllInvoices(),
-        getAllBordereaux()
+        getAllBordereaux(),
+        getAllCertificates()
       ]);
 
       const doctorProfile = JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}');
       const payload = {
         app: 'DocPocket Cab',
-        schemaVersion: 6,
+        schemaVersion: 7,
         exportedAt: new Date().toISOString(),
         stats: {
           patientsCount: patients.length,
           consultationsCount: consultations.length,
           prescriptionsCount: prescriptions.length,
           invoicesCount: invoices.length,
-          bordereauxCount: bordereaux.length
+          bordereauxCount: bordereaux.length,
+          certificatesCount: certificates.length
         },
         doctorProfile,
         smsRdvLicense: getSmsLicenseSyncPayload(),
-        data: { patients, consultations, prescriptions, invoices, bordereaux }
+        data: { patients, consultations, prescriptions, invoices, bordereaux, certificates }
       };
 
       await uploadBackupToBridge(payload, 'reponse_demande_initiale_mobile');
@@ -1215,12 +1247,22 @@ function onWindowWakeup() {
 
 function onVisibilityChange() {
   if (typeof document !== 'undefined') {
-    if (document.hidden && pendingIdleSignal) {
-      // Lorsque l'application passe en arrière-plan, exécuter immédiatement les signaux en attente
-      executePendingSignalWhenIdle();
-    } else if (!document.hidden) {
-      // Dès que l'utilisateur réactive l'application, vérifier immédiatement les mises à jour
+    if (document.hidden) {
+      if (pendingIdleSignal) {
+        executePendingSignalWhenIdle();
+      }
+      // Mode veille économe : scrutation ralentie à 15s en arrière-plan
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = setInterval(checkBridgeSignal, 15000);
+      }
+    } else {
+      // Réveil immédiat : vérification instantanée à 0 seconde puis scrutation ultra-réactive à 3.5s
       checkBridgeSignal();
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = setInterval(checkBridgeSignal, 3500);
+      }
     }
   }
 }
@@ -1243,8 +1285,8 @@ export function startBridgeListener() {
   // 1. Première vérification immédiate
   checkBridgeSignal();
 
-  // 2. Scrutation régulière ultra-légère toutes les 5 secondes (1 seule requête JSON légère)
-  pollTimer = setInterval(checkBridgeSignal, 5000);
+  // 2. Scrutation régulière ultra-réactive toutes les 3.5 secondes
+  pollTimer = setInterval(checkBridgeSignal, 3500);
 
   // 3. Écouteurs de réveil instantané (déverrouillage téléphone, focus onglet, retour en ligne)
   if (typeof window !== 'undefined') {
