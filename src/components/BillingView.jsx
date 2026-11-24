@@ -15,7 +15,9 @@ import {
   clearPersonalFinancialArchive
 } from '../services/patientStorage';
 import { generateReceiptReport } from '../services/receiptReportGenerator';
-import { generateCnamBordereauReport, exportCnamBordereauCSV } from '../services/cnamBordereauGenerator';
+import { generateCnamBordereauReport, exportCnamBordereauCSV, downloadCnamBordereauTxt } from '../services/cnamBordereauGenerator';
+import { calculateBordereauCnamDeadline, getAllActiveCnamAlerts, deliverAndArchiveBordereau } from '../services/cnamAlertService';
+import CnamDeadlineAlertBanner from './CnamDeadlineAlertBanner';
 import actesData from '../data/actesMedicaux.json';
 import { APCI_LIST } from '../constants/medicalConstants';
 import historicalBordereaux from '../data/historicalBordereaux.json';
@@ -1859,6 +1861,13 @@ export default function BillingView({ initialPatient = null, initialConsultation
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '14px' : '20px', maxWidth: '100%', overflowX: 'hidden' }}>
+            {/* Infobulle d'alerte quotidienne d'échéance des 2 mois CNAM (J-10 Jaune -> J-4 Orange -> J-2 Rouge) */}
+            <CnamDeadlineAlertBanner
+              alerts={getAllActiveCnamAlerts(allBords)}
+              onBordereauDelivered={() => refreshData()}
+              onViewBordereau={(b) => setViewingBordereau(b)}
+            />
+
             {/* 1. CARTOUCHES KPI RECAPITULATIFS */}
             <div style={{
               display: 'grid',
@@ -2116,7 +2125,8 @@ export default function BillingView({ initialPatient = null, initialConsultation
                       const nbActes = b.totalFactures || b.lignes?.length || 0;
                       const mtt = (Number(b.montantTotalCnam) || 0).toFixed(3);
                       const isRegle = b.statut === 'regle';
-                      const isDepose = b.statut === 'depose';
+                      const isDepose = b.statut === 'depose' || b.livreCnam === true;
+                      const deadlineInfo = calculateBordereauCnamDeadline(b);
 
                       return (
                         <div
@@ -2125,10 +2135,11 @@ export default function BillingView({ initialPatient = null, initialConsultation
                             background: '#0f172a',
                             padding: '12px',
                             borderRadius: '10px',
-                            border: '1px solid #334155',
+                            border: deadlineInfo.isAlertActive ? `1.5px solid ${deadlineInfo.colorTheme.border}` : '1px solid #334155',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '8px'
+                            gap: '8px',
+                            boxShadow: deadlineInfo.isAlertActive ? deadlineInfo.colorTheme.glow : 'none'
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2151,7 +2162,19 @@ export default function BillingView({ initialPatient = null, initialConsultation
                               </span>
                             ) : isDepose ? (
                               <span style={{ background: 'rgba(2, 132, 199, 0.2)', color: '#38bdf8', border: '1px solid #0284c7', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 600 }}>
-                                Déposé
+                                ✓ Déposé CNAM
+                              </span>
+                            ) : deadlineInfo.isAlertActive ? (
+                              <span style={{
+                                background: deadlineInfo.colorTheme.badgeBg,
+                                color: deadlineInfo.colorTheme.badgeText,
+                                border: `1px solid ${deadlineInfo.colorTheme.border}`,
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.72rem',
+                                fontWeight: 900
+                              }}>
+                                {deadlineInfo.colorTheme.icon} {deadlineInfo.badgeLabel}
                               </span>
                             ) : (
                               <span style={{ background: 'rgba(202, 138, 4, 0.2)', color: '#facc15', border: '1px solid #ca8a04', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 600 }}>
@@ -2229,6 +2252,48 @@ export default function BillingView({ initialPatient = null, initialConsultation
                             >
                               📊 CSV
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadCnamBordereauTxt(b)}
+                              title="Télécharger le fichier medecins-AA-MM-JJ.txt pour clé USB (CNAM)"
+                              style={{
+                                padding: '6px 8px',
+                                borderRadius: '6px',
+                                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                border: 'none',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: 600
+                              }}
+                            >
+                              💾 Clé USB (TXT)
+                            </button>
+                            {!isDepose && !isRegle && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (window.confirm(`Confirmez-vous que le bordereau ${b.numBordereau} a été livré à la CNAM ? Il sera archivé et l'alerte d'échéance des 2 mois sera désactivée.`)) {
+                                    await deliverAndArchiveBordereau(b);
+                                    refreshData();
+                                  }
+                                }}
+                                style={{
+                                  padding: '6px 8px',
+                                  borderRadius: '6px',
+                                  background: '#16a34a',
+                                  border: 'none',
+                                  color: '#fff',
+                                  cursor: 'pointer',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 800,
+                                  gridColumn: isMobile ? 'span 2' : 'auto'
+                                }}
+                                title="Marquer comme livré à la CNAM et archiver (désactive la notification d'échéance des 2 mois)"
+                              >
+                                🚚 Livré CNAM & Archiver
+                              </button>
+                            )}
                             {b.id && (
                               <button
                                 type="button"
@@ -2272,7 +2337,8 @@ export default function BillingView({ initialPatient = null, initialConsultation
                           const nbActes = b.totalFactures || b.lignes?.length || 0;
                           const mtt = (Number(b.montantTotalCnam) || 0).toFixed(3);
                           const isRegle = b.statut === 'regle';
-                          const isDepose = b.statut === 'depose';
+                          const isDepose = b.statut === 'depose' || b.livreCnam === true;
+                          const deadlineInfo = calculateBordereauCnamDeadline(b);
 
                           return (
                             <tr
@@ -2328,7 +2394,7 @@ export default function BillingView({ initialPatient = null, initialConsultation
                                 {mtt} DT
                               </td>
 
-                              {/* Statut */}
+                              {/* Statut & Délai CNAM 2 mois */}
                               <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                                 {isRegle ? (
                                   <span style={{ background: 'rgba(22, 163, 74, 0.2)', color: '#4ade80', border: '1px solid #16a34a', padding: '3px 9px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
@@ -2336,7 +2402,20 @@ export default function BillingView({ initialPatient = null, initialConsultation
                                   </span>
                                 ) : isDepose ? (
                                   <span style={{ background: 'rgba(2, 132, 199, 0.2)', color: '#38bdf8', border: '1px solid #0284c7', padding: '3px 9px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
-                                    Déposé
+                                    ✓ Déposé CNAM
+                                  </span>
+                                ) : deadlineInfo.isAlertActive ? (
+                                  <span style={{
+                                    background: deadlineInfo.colorTheme.badgeBg,
+                                    color: deadlineInfo.colorTheme.badgeText,
+                                    border: `1px solid ${deadlineInfo.colorTheme.border}`,
+                                    padding: '3px 9px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 900,
+                                    boxShadow: deadlineInfo.colorTheme.glow
+                                  }}>
+                                    {deadlineInfo.colorTheme.icon} {deadlineInfo.badgeLabel}
                                   </span>
                                 ) : (
                                   <span style={{ background: 'rgba(202, 138, 4, 0.2)', color: '#facc15', border: '1px solid #ca8a04', padding: '3px 9px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
@@ -2401,6 +2480,52 @@ export default function BillingView({ initialPatient = null, initialConsultation
                                   >
                                     📊 CSV
                                   </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadCnamBordereauTxt(b)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: '6px',
+                                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                      border: 'none',
+                                      color: '#fff',
+                                      cursor: 'pointer',
+                                      fontSize: '0.78rem',
+                                      fontWeight: 600
+                                    }}
+                                    title="Télécharger le fichier officiel medecins-AA-MM-JJ.txt pour clé USB (CNAM)"
+                                  >
+                                    💾 Clé USB (TXT)
+                                  </button>
+
+                                  {!isDepose && !isRegle && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (window.confirm(`Confirmez-vous que le bordereau ${b.numBordereau} a été physiquement livré à la CNAM ? Il sera archivé et l'alerte d'échéance des 2 mois sera désactivée.`)) {
+                                          await deliverAndArchiveBordereau(b);
+                                          refreshData();
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        background: '#16a34a',
+                                        border: 'none',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 800,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}
+                                      title="Marquer comme livré à la CNAM et archiver (désactive la notification d'échéance des 2 mois)"
+                                    >
+                                      <span>🚚</span> Livré CNAM
+                                    </button>
+                                  )}
 
                                   {b.id && (
                                     <button
@@ -2837,6 +2962,64 @@ export default function BillingView({ initialPatient = null, initialConsultation
                       >
                         📊 Exporter CSV
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadCnamBordereauTxt(viewingBordereau)}
+                        title="Télécharger le fichier medecins-AA-MM-JJ.txt pour clé USB (CNAM)"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          border: 'none',
+                          color: '#fff',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        💾 Clé USB (TXT)
+                      </button>
+
+                      {(!viewingBordereau.livreCnam && viewingBordereau.statut !== 'depose' && viewingBordereau.statut !== 'regle') ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.confirm(`Confirmez-vous que le bordereau ${viewingBordereau.numBordereau} a été physiquement livré à la CNAM ? Il sera archivé et l'alerte d'échéance des 2 mois sera désactivée.`)) {
+                              const updated = await deliverAndArchiveBordereau(viewingBordereau);
+                              setViewingBordereau(updated);
+                              refreshData();
+                            }
+                          }}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            background: '#16a34a',
+                            border: 'none',
+                            color: '#fff',
+                            fontSize: '0.8rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          title="Marquer comme livré à la CNAM et archiver (désactive la notification d'échéance des 2 mois)"
+                        >
+                          <span>🚚</span> Bordereau livré à la CNAM & Archiver
+                        </button>
+                      ) : (
+                        <span style={{
+                          background: 'rgba(34, 197, 94, 0.15)',
+                          color: '#4ade80',
+                          border: '1px solid rgba(34, 197, 94, 0.3)',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700
+                        }}>
+                          ✓ Livré à la CNAM {viewingBordereau.dateDepot ? `le ${viewingBordereau.dateDepot}` : ''} (Archivé)
+                        </span>
+                      )}
                     </div>
                   </div>
 

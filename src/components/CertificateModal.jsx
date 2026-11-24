@@ -7,6 +7,7 @@ import {
   formatFrenchDate
 } from '../services/medicalCertificateService';
 import { saveCertificate } from '../services/patientStorage';
+import TemplateLayoutEditorModal from './TemplateLayoutEditorModal';
 
 export default function CertificateModal({
   isOpen,
@@ -23,6 +24,7 @@ export default function CertificateModal({
   const [useStamp, setUseStamp] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
 
   // Form parameters
   const [formData, setFormData] = useState({
@@ -377,13 +379,36 @@ export default function CertificateModal({
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.6rem', cursor: 'pointer', padding: '2px 8px' }}
-          >
-            &times;
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => setShowLayoutEditor(true)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                background: 'rgba(168, 85, 247, 0.2)',
+                border: '1px solid rgba(168, 85, 247, 0.4)',
+                color: '#d8b4fe',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title="Ouvrir l'éditeur de mise en page, marges et variables"
+            >
+              <span>🎨</span>
+              <span>Éditeur de Modèles & Mise en page</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.6rem', cursor: 'pointer', padding: '2px 8px' }}
+            >
+              &times;
+            </button>
+          </div>
         </div>
 
         {/* Corps du modal : 2 colonnes (Modèles à gauche, Formulaire et Prévisualisation à droite) */}
@@ -802,6 +827,17 @@ export default function CertificateModal({
             </button>
           </div>
         </div>
+
+        {/* Modal Éditeur de Mise en page et Modèles */}
+        {showLayoutEditor && (
+          <TemplateLayoutEditorModal
+            isOpen={showLayoutEditor}
+            onClose={() => setShowLayoutEditor(false)}
+            initialType="certificate"
+            patient={patient}
+            consultation={consultation}
+          />
+        )}
       </div>
     </div>,
     document.body

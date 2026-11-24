@@ -16,6 +16,7 @@ import {
 import { generatePrescriptionReport } from '../services/prescriptionReportGenerator';
 import { getPrescriptionSettings } from '../services/prescriptionSettingsService';
 import { APCI_LIST } from '../constants/medicalConstants';
+import TemplateLayoutEditorModal from './TemplateLayoutEditorModal';
 
 export default function PrescriptionView({
   initialPatient = null,
@@ -23,6 +24,7 @@ export default function PrescriptionView({
   onFinished = null
 }) {
   const [patients, setPatients] = useState([]);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatient ? String(initialPatient.id) : '');
   const [selectedPatient, setSelectedPatient] = useState(initialPatient || null);
   const [searchPatient, setSearchPatient] = useState('');
@@ -511,6 +513,29 @@ export default function PrescriptionView({
               )}
             </div>
           )}
+
+          {/* Bouton Éditeur de Mise en page et Modèle d'Ordonnance */}
+          <button
+            type="button"
+            onClick={() => setShowTemplateEditor(true)}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(147, 51, 234, 0.3))',
+              color: '#d8b4fe',
+              border: '1px solid rgba(168, 85, 247, 0.4)',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title="Personnaliser les marges, formats et modèles d'ordonnances"
+          >
+            <span>🎨</span>
+            <span>Mise en page & Modèles Ordonnance</span>
+          </button>
         </div>
       </div>
 
@@ -1706,6 +1731,17 @@ export default function PrescriptionView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Éditeur de Mise en page et Modèle d'Ordonnance */}
+      {showTemplateEditor && (
+        <TemplateLayoutEditorModal
+          isOpen={showTemplateEditor}
+          onClose={() => setShowTemplateEditor(false)}
+          initialType="prescription"
+          patient={selectedPatient}
+          consultation={initialConsultation}
+        />
       )}
     </div>
   );

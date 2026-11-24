@@ -8,7 +8,8 @@ import {
   isDemoDatabase,
   getUnsettledConsultation,
   setUnsettledConsultation,
-  clearUnsettledConsultation
+  clearUnsettledConsultation,
+  getAllBordereaux
 } from './services/patientStorage';
 import { isBackupFolderConfigured } from './services/backupFolderService';
 import {
@@ -28,6 +29,10 @@ import AgendaView from './components/AgendaView';
 import ConsultationView from './components/ConsultationView';
 import PrescriptionView from './components/PrescriptionView';
 import BillingView from './components/BillingView';
+import CertificatesView from './components/CertificatesView';
+import TemplateLayoutEditorModal from './components/TemplateLayoutEditorModal';
+import CnamDeadlineAlertBanner from './components/CnamDeadlineAlertBanner';
+import { getAllActiveCnamAlerts } from './services/cnamAlertService';
 import OutilsView from './components/OutilsView';
 import DirectoryView from './components/DirectoryView';
 import SettingsView from './components/SettingsView';
@@ -176,6 +181,24 @@ export default function App() {
   // Cibles pour bascule Consultation <-> Rendez-vous
   const [appointmentTargetPatient, setAppointmentTargetPatient] = useState(null);
   const [pendingConsultationReturn, setPendingConsultationReturn] = useState(null);
+
+  // Alertes réglementaires CNAM : délai de forclusion de 2 mois pour dépôt des bordereaux
+  const [cnamAlerts, setCnamAlerts] = useState([]);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+
+  const refreshCnamAlerts = async () => {
+    try {
+      const bords = await getAllBordereaux();
+      const alerts = getAllActiveCnamAlerts(bords || []);
+      setCnamAlerts(alerts);
+    } catch (e) {
+      console.warn("Erreur rafraîchissement alertes CNAM:", e);
+    }
+  };
+
+  useEffect(() => {
+    refreshCnamAlerts();
+  }, []);
 
   // Tri du bloc patient : 'numfch' | 'nom' | 'prenom' | 'consultation' | 'birthdate'
   const [sortOrder, setSortOrder] = useState(() => {
@@ -708,6 +731,34 @@ export default function App() {
         <div>
           <div>Prescriptions & DCI</div>
           <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Ordonnances & Base Médocs</div>
+        </div>
+      </button>
+
+      <button
+        onClick={() => {
+          handleNavTabClick('certificates', () => {
+            setSelectedPatient(null);
+          }, onItemClick);
+        }}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 14px',
+          borderRadius: '8px',
+          border: 'none',
+          background: activeTab === 'certificates' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+          color: activeTab === 'certificates' ? '#38bdf8' : '#94a3b8',
+          fontWeight: activeTab === 'certificates' ? 600 : 500,
+          cursor: 'pointer',
+          textAlign: 'left'
+        }}
+      >
+        <span style={{ fontSize: '1.2rem' }}>📜</span>
+        <div>
+          <div>Certificats & Modèles</div>
+          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Repos, Aptitudes & Éditeur</div>
         </div>
       </button>
 
@@ -1401,6 +1452,7 @@ export default function App() {
                   {activeTab === 'agenda' && 'Agenda Médical'}
                   {activeTab === 'consultation' && 'Consultations'}
                   {activeTab === 'prescriptions' && 'Ordonnances'}
+                  {activeTab === 'certificates' && 'Certificats'}
                   {activeTab === 'billing' && 'Facturation & CNAM'}
                   {activeTab === 'tools' && 'Outils & Addicto'}
                   {activeTab === 'directory' && 'Annuaire Confrères'}
@@ -1415,6 +1467,7 @@ export default function App() {
                   {activeTab === 'agenda' && 'Agenda Médical :'}
                   {activeTab === 'consultation' && 'Consultations Médicales :'}
                   {activeTab === 'prescriptions' && 'Ordonnances Médicales :'}
+                  {activeTab === 'certificates' && 'Certificats & Modèles :'}
                   {activeTab === 'billing' && 'Facturation & CNAM :'}
                   {activeTab === 'tools' && 'Outils & Addicto :'}
                   {activeTab === 'directory' && 'Annuaire des Confrères :'}
@@ -1426,6 +1479,7 @@ export default function App() {
                   {activeTab === 'agenda' && 'Agenda Médical & Planification des Rendez-Vous'}
                   {activeTab === 'consultation' && 'Consultations Médicales & Résumés PDF'}
                   {activeTab === 'prescriptions' && 'Prescriptions & Ordonnances Médicales (Base Médocs)'}
+                  {activeTab === 'certificates' && 'Certificats Médicaux, Repos, Aptitudes & Éditeur de Modèles'}
                   {activeTab === 'billing' && 'Facturation, Quittances & Bordereaux CNAM (Tiers-Payant)'}
                   {activeTab === 'tools' && 'DocPocket Mapa, MailPocket, SMS, Scores & Addicto'}
                   {activeTab === 'directory' && 'Réseau Médical Partagé & Orientation des Patients'}
@@ -1620,6 +1674,17 @@ export default function App() {
             </div>
           </div>
         </header>
+
+        {/* Infobulle quotidienne d'alerte d'échéance des 2 mois CNAM (J-10 Jaune -> J-4 Orange -> J-2 Rouge) */}
+        <CnamDeadlineAlertBanner
+          alerts={cnamAlerts}
+          onBordereauDelivered={async () => {
+            await refreshCnamAlerts();
+          }}
+          onViewBordereau={() => {
+            setActiveTab('billing');
+          }}
+        />
 
         {/* Corps avec défilement fluide et marge basse pour la barre mobile */}
         <div
@@ -2662,6 +2727,17 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'certificates' && (
+            <CertificatesView
+              initialPatient={selectedPatient || currentActivePatient}
+              onOpenConsultation={(patient) => {
+                setSelectedPatient(patient);
+                setCurrentActivePatient(patient);
+                setActiveTab('consultation');
+              }}
+            />
+          )}
+
           {activeTab === 'billing' && (
             <BillingView
               initialPatient={billingTargetPatient || currentActivePatient}
@@ -2977,6 +3053,16 @@ export default function App() {
           refreshPatients();
         }}
       />
+
+      {/* Modal Éditeur de Mise en page et Modèles (Ordonnances & Certificats) */}
+      {showTemplateEditor && (
+        <TemplateLayoutEditorModal
+          isOpen={showTemplateEditor}
+          onClose={() => setShowTemplateEditor(false)}
+          initialType="certificate"
+          patient={currentActivePatient || selectedPatient}
+        />
+      )}
     </div>
   );
 }

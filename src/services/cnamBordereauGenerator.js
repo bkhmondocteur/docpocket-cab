@@ -307,6 +307,9 @@ export function generateCnamBordereauReport(bordereau) {
         <button class="btn btn-csv" onclick="exportCsv()">
           📊 Exporter Fichier CSV CNAM
         </button>
+        <button class="btn btn-csv" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #fff;" onclick="exportTxt()">
+          💾 Télécharger Fichier TXT CNAM (Clé USB)
+        </button>
         <button class="btn btn-close" onclick="window.close()">
           ✕ Fermer
         </button>
@@ -482,6 +485,97 @@ export function generateCnamBordereauReport(bordereau) {
           a.click();
           URL.revokeObjectURL(url);
         }
+
+        function exportTxt() {
+          function toDigits(dateStr) {
+            if (!dateStr) return '${dateStr.replace(/-/g, '')}';
+            var clean = String(dateStr).replace(/\\D/g, '');
+            if (clean.length === 8) return clean;
+            var parts = String(dateStr).split('-');
+            if (parts.length === 3) {
+              return parts[0].padStart(4, '20') + parts[1].padStart(2, '0') + parts[2].padStart(2, '0');
+            }
+            return '${dateStr.replace(/-/g, '')}';
+          }
+
+          var docCnam = '${docCnamId}'.replace(/\\D/g, '').padEnd(12, ' ').slice(0, 12);
+          var rawCreation = toDigits('${dateStr}');
+          var rawDebut = toDigits('${bordereau.periodeDebut || dateStr}');
+          var rawFin = toDigits('${bordereau.periodeFin || dateStr}');
+
+          var items = ${JSON.stringify(lignes)};
+          var nbActes = items.length;
+          var totalGlobal = ${Number(bordereau.montantTotalGlobal) || 0};
+          var totalPatient = ${Number(bordereau.montantTotalPatient) || 0};
+          var totalCnam = ${Number(bordereau.montantTotalCnam) || 0};
+
+          var header = '4' +
+            docCnam +
+            rawCreation +
+            rawDebut +
+            rawFin +
+            rawCreation +
+            docCnam +
+            String(nbActes).padStart(5, '0') +
+            String(Math.round(totalGlobal * 1000)).padStart(10, '0') +
+            String(Math.round(totalPatient * 1000)).padStart(10, '0') +
+            String(Math.round(totalCnam * 1000)).padStart(10, '0');
+
+          var detailLines = items.map(function(it, idx) {
+            var rawCnam = String(it.cnamId || '').replace(/\\D/g, '');
+            var matricule = rawCnam.slice(0, 10).padStart(10, '0');
+            var cle = (rawCnam.length >= 12 ? rawCnam.slice(10, 12) : '00').padStart(2, '0');
+            var cleanName = (it.patientName || 'PATIENT')
+              .normalize('NFD')
+              .replace(/[\\u0300-\\u036f]/g, '')
+              .replace(/[^a-zA-Z0-9\\s]/g, ' ')
+              .toUpperCase()
+              .trim()
+              .slice(0, 60)
+              .padEnd(60, ' ');
+            var birthDate = toDigits(it.birthDate || it.birthdate || '1980-01-01');
+            var acteDate = toDigits(it.date || '${dateStr}');
+            var mttGlobal = Number(it.montantGlobal) || 30.0;
+            var mttPatient = Number(it.partPatient) || 0.0;
+            var mttCnam = Number(it.partCnam) || (mttGlobal - mttPatient);
+
+            var apciDigits = '0000';
+            if (it.apci) {
+              var m = String(it.apci).match(/\\d+/);
+              if (m) apciDigits = String(m[0]).padStart(4, '0');
+            }
+
+            return '2' +
+              String(idx + 1).padStart(5, '0') +
+              matricule +
+              cle +
+              '41' +
+              '00' +
+              cleanName +
+              birthDate +
+              docCnam +
+              acteDate +
+              String(Math.round(mttGlobal * 1000)).padStart(10, '0') +
+              String(Math.round(mttGlobal * 1000)).padStart(10, '0') +
+              String(Math.round(mttPatient * 1000)).padStart(10, '0') +
+              String(Math.round(mttCnam * 1000)).padStart(10, '0') +
+              apciDigits;
+          });
+
+          var fullTxt = [header].concat(detailLines).join('\\r\\n') + '\\r\\n';
+          var yy = rawCreation.slice(2, 4);
+          var mm = rawCreation.slice(4, 6);
+          var dd = rawCreation.slice(6, 8);
+          var fileName = 'medecins-' + yy + '-' + mm + '-' + dd + '.txt';
+
+          var blob = new Blob([fullTxt], { type: 'text/plain;charset=windows-1256;' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
       </script>
     </body>
     </html>
@@ -490,6 +584,141 @@ export function generateCnamBordereauReport(bordereau) {
   printWindow.document.open();
   printWindow.document.write(htmlContent);
   printWindow.document.close();
+}
+
+/**
+ * Génère le fichier TXT normalisé CNAM (medecins-AA-MM-JJ.txt) pour clé USB
+ */
+export function generateCnamBordereauTxt(bordereau) {
+  if (!bordereau) return { content: '', fileName: 'medecins.txt' };
+
+  const savedProfile = typeof localStorage !== 'undefined'
+    ? JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}')
+    : {};
+  const docCnamId = String(bordereau.medecinCnamId || savedProfile.cnamId || '010002763183')
+    .replace(/\D/g, '')
+    .padEnd(12, ' ')
+    .slice(0, 12);
+
+  function toDigits(dateStr, fallback = new Date()) {
+    if (!dateStr) {
+      const d = fallback instanceof Date ? fallback : new Date();
+      return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const clean = String(dateStr).replace(/\D/g, '');
+    if (clean.length === 8) return clean;
+    if (dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        return `${parts[0].padStart(4, '20')}${parts[1].padStart(2, '0')}${parts[2].padStart(2, '0')}`;
+      }
+    }
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    }
+    return '20261124';
+  }
+
+  const rawCreation = toDigits(bordereau.dateCreation || new Date());
+  const rawDebut = toDigits(bordereau.periodeDebut || bordereau.dateCreation);
+  const rawFin = toDigits(bordereau.periodeFin || bordereau.dateCreation);
+  const rawEmission = rawCreation;
+
+  const lignes = Array.isArray(bordereau.lignes) ? bordereau.lignes : [];
+  const nbActes = lignes.length;
+
+  const totalGlobal = Number(bordereau.montantTotalGlobal) || lignes.reduce((acc, l) => acc + (Number(l.montantGlobal) || 0), 0);
+  const totalPatient = Number(bordereau.montantTotalPatient) || lignes.reduce((acc, l) => acc + (Number(l.partPatient) || 0), 0);
+  const totalCnam = Number(bordereau.montantTotalCnam) || lignes.reduce((acc, l) => acc + (Number(l.partCnam) || 0), 0);
+
+  // En-tête : 92 caractères
+  const header = [
+    '4',
+    docCnamId,
+    rawCreation,
+    rawDebut,
+    rawFin,
+    rawEmission,
+    docCnamId,
+    String(nbActes).padStart(5, '0'),
+    String(Math.round(totalGlobal * 1000)).padStart(10, '0'),
+    String(Math.round(totalPatient * 1000)).padStart(10, '0'),
+    String(Math.round(totalCnam * 1000)).padStart(10, '0')
+  ].join('');
+
+  // Lignes d'actes : 154 caractères
+  const detailLines = lignes.map((it, idx) => {
+    const rawCnam = String(it.cnamId || '').replace(/\D/g, '');
+    const matricule = rawCnam.slice(0, 10).padStart(10, '0');
+    const cle = (rawCnam.length >= 12 ? rawCnam.slice(10, 12) : '00').padStart(2, '0');
+    const cleanName = (it.patientName || 'PATIENT')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')
+      .toUpperCase()
+      .trim()
+      .slice(0, 60)
+      .padEnd(60, ' ');
+    const birthDate = toDigits(it.birthDate || it.birthdate, '19800101');
+    const acteDate = toDigits(it.date, rawCreation);
+
+    const mttGlobal = Number(it.montantGlobal) || 30.0;
+    const mttPatient = Number(it.partPatient) || 0.0;
+    const mttCnam = Number(it.partCnam) || (mttGlobal - mttPatient);
+
+    let apciDigits = '0000';
+    if (it.apci) {
+      const match = String(it.apci).match(/\d+/);
+      if (match) apciDigits = String(match[0]).padStart(4, '0');
+    }
+
+    return [
+      '2',
+      String(idx + 1).padStart(5, '0'),
+      matricule,
+      cle,
+      '41',
+      '00',
+      cleanName,
+      birthDate,
+      docCnamId,
+      acteDate,
+      String(Math.round(mttGlobal * 1000)).padStart(10, '0'),
+      String(Math.round(mttGlobal * 1000)).padStart(10, '0'),
+      String(Math.round(mttPatient * 1000)).padStart(10, '0'),
+      String(Math.round(mttCnam * 1000)).padStart(10, '0'),
+      apciDigits
+    ].join('');
+  });
+
+  const fullContent = [header, ...detailLines].join('\r\n') + '\r\n';
+  const yy = rawCreation.slice(2, 4);
+  const mm = rawCreation.slice(4, 6);
+  const dd = rawCreation.slice(6, 8);
+  const fileName = `medecins-${yy}-${mm}-${dd}.txt`;
+
+  return {
+    content: fullContent,
+    fileName,
+    stats: {
+      lignesCount: detailLines.length,
+      totalGlobal,
+      totalCnam
+    }
+  };
+}
+
+export function downloadCnamBordereauTxt(bordereau) {
+  const { content, fileName } = generateCnamBordereauTxt(bordereau);
+  if (!content) return;
+  const blob = new Blob([content], { type: 'text/plain;charset=windows-1256;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function exportCnamBordereauCSV(bordereau) {
