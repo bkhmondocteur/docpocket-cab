@@ -1,7 +1,5 @@
 // IndexedDB Storage Adapter complet pour PWA / Mode Hors-Ligne
 import historicalBordereaux from '../data/historicalBordereaux.json';
-import historicalInvoices from '../data/historicalInvoices.json';
-import historicalFinancialReports from '../data/historicalFinancialReports.json';
 import { getActiveDBName, getActivePractitionerId, getActivePractitioner } from './practitionerService';
 
 const DB_VERSION = 6; // Montée de version pour Facturation, Quittances & Bordereaux CNAM (Bloc 5)
@@ -1063,10 +1061,82 @@ export async function deletePrescriptionById(id) {
 // STORE FACTURATION, HONORAIRES & QUITTANCES (Bloc 5)
 // ==============================================================
 
-const INITIAL_INVOICES = Array.isArray(historicalInvoices) ? historicalInvoices : [];
-
+/**
+ * Récupère les bilans financiers historiques stockés localement et de façon étanche
+ * pour le praticien actuellement connecté.
+ */
 export function getHistoricalFinancialReports() {
-  return historicalFinancialReports || { monthlyReports: [], yearlySummaries: {} };
+  try {
+    const practitionerId = getActivePractitionerId() || 'primary';
+    const key = `docpocket_financial_reports_${practitionerId}`;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.error("Erreur lecture bilans financiers locaux:", e);
+  }
+  return { monthlyReports: [], yearlySummaries: {} };
+}
+
+/**
+ * Importe un fichier d'archives financières personnelles (JSON) exclusivement
+ * dans la base locale (IndexedDB + LocalStorage) du praticien sans aucun partage externe.
+ */
+export async function importPersonalFinancialArchive(archiveData) {
+  if (!archiveData) throw new Error("Fichier d'archives invalide ou vide.");
+
+  const practitionerId = getActivePractitionerId() || 'primary';
+  const reports = archiveData.financialReports || { monthlyReports: [], yearlySummaries: {} };
+  const invoices = Array.isArray(archiveData.invoices) ? archiveData.invoices : [];
+
+  // 1. Sauvegarder les bilans mensuels & annuels dans le stockage local du praticien
+  const key = `docpocket_financial_reports_${practitionerId}`;
+  localStorage.setItem(key, JSON.stringify(reports));
+
+  // 2. Insérer les quittances historiques dans l'IndexedDB locale du praticien
+  if (invoices.length > 0) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_INVOICES, 'readwrite');
+    const store = tx.objectStore(STORE_INVOICES);
+
+    // Récupérer les IDs existants pour éviter tout doublon
+    const existingReq = store.getAll();
+    await new Promise((resolve, reject) => {
+      existingReq.onsuccess = () => resolve();
+      existingReq.onerror = () => reject(existingReq.error);
+    });
+    const existingIds = new Set((existingReq.result || []).map(i => String(i.id)));
+
+    for (const inv of invoices) {
+      if (!existingIds.has(String(inv.id))) {
+        store.put(inv);
+      }
+    }
+
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  notifyDataChanged('invoices', { action: 'import_archive', countInvoices: invoices.length });
+
+  return {
+    success: true,
+    countMonths: (reports.monthlyReports || []).length,
+    countInvoices: invoices.length
+  };
+}
+
+/**
+ * Réinitialise les bilans financiers historiques du praticien
+ */
+export function clearPersonalFinancialArchive() {
+  const practitionerId = getActivePractitionerId() || 'primary';
+  const key = `docpocket_financial_reports_${practitionerId}`;
+  localStorage.removeItem(key);
+  notifyDataChanged('invoices', { action: 'clear_archive' });
 }
 
 export async function getAllInvoices() {
@@ -1088,14 +1158,8 @@ export async function getAllInvoices() {
         list = list.filter(inv => !demoNumFacs.includes(inv.numFacture) && !demoNames.includes((inv.patientName || '').trim().toUpperCase()));
       }
 
-      // Fusion avec les factures et règlements historiques sans doublons
-      const existingIds = new Set(list.map(i => String(i.id)));
-      const extra = (getActivePractitionerId() === 'primary' || !getActivePractitionerId())
-        ? INITIAL_INVOICES.filter(h => !existingIds.has(String(h.id)))
-        : [];
-      const merged = [...list, ...extra];
-      merged.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-      resolve(merged);
+      list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+      resolve(list);
     };
     getAllRequest.onerror = () => reject(getAllRequest.error);
   });

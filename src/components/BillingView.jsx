@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   getAllPatients,
   getAllInvoices,
@@ -10,7 +10,9 @@ import {
   deleteBordereauById,
   parseCnamBordereauTxt,
   clearUnsettledConsultation,
-  getHistoricalFinancialReports
+  getHistoricalFinancialReports,
+  importPersonalFinancialArchive,
+  clearPersonalFinancialArchive
 } from '../services/patientStorage';
 import { generateReceiptReport } from '../services/receiptReportGenerator';
 import { generateCnamBordereauReport, exportCnamBordereauCSV } from '../services/cnamBordereauGenerator';
@@ -70,14 +72,57 @@ export default function BillingView({ initialPatient = null, initialConsultation
   const [invoicesList, setInvoicesList] = useState([]);
   const [journalPeriod, setJournalPeriod] = useState('mois'); // 'jour' | 'semaine' | 'mois' | 'tout'
 
-  // Bilans Mensuels & Annuels Consolidés (Historique complet)
+  // Bilans Mensuels & Annuels Consolidés (Historique complet étanche et privé)
   const [financialReports, setFinancialReports] = useState(() => getHistoricalFinancialReports());
   const [journalSubTab, setJournalSubTab] = useState('bilans'); // 'bilans' | 'quittances'
-  const [reportYearFilter, setReportYearFilter] = useState('2026');
+  const [reportYearFilter, setReportYearFilter] = useState(() => {
+    const reps = getHistoricalFinancialReports();
+    const yrs = Object.keys(reps?.yearlySummaries || {}).sort((a, b) => b.localeCompare(a));
+    return yrs.length > 0 ? yrs[0] : '2026';
+  });
   const [reportMonthFilter, setReportMonthFilter] = useState('TOUS');
   const [expandedMonthId, setExpandedMonthId] = useState(null);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   const [invoicesDisplayLimit, setInvoicesDisplayLimit] = useState(50);
+  const [importStatus, setImportStatus] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleImportArchive = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setImportStatus({ type: 'loading', message: 'Importation des archives en cours...' });
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const res = await importPersonalFinancialArchive(parsed);
+      const updatedReports = getHistoricalFinancialReports();
+      setFinancialReports(updatedReports);
+      const updatedInvoices = await getAllInvoices();
+      setInvoicesList(updatedInvoices);
+      if (updatedReports.yearlySummaries && Object.keys(updatedReports.yearlySummaries).length > 0) {
+        const latestYear = Object.keys(updatedReports.yearlySummaries).sort((a, b) => b.localeCompare(a))[0];
+        setReportYearFilter(latestYear);
+      }
+      setImportStatus({ 
+        type: 'success', 
+        message: '✓ Importation réussie : ' + res.countMonths + ' mois de bilans et ' + res.countInvoices + ' quittances intégrés dans votre espace personnel DocPocket Cab !' 
+      });
+      setTimeout(() => setImportStatus(null), 8000);
+    } catch (err) {
+      console.error('Erreur import archives:', err);
+      setImportStatus({ type: 'error', message: 'Erreur d\'import : ' + (err.message || 'Fichier JSON non reconnu') });
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleClearArchive = () => {
+    if (window.confirm('Voulez-vous réinitialiser votre historique financier importé de votre espace local ?')) {
+      clearPersonalFinancialArchive();
+      setFinancialReports({ monthlyReports: [], yearlySummaries: {} });
+      refreshData();
+    }
+  };
 
   // Charger les données initiales
   const refreshData = async () => {
@@ -3043,8 +3088,106 @@ export default function BillingView({ initialPatient = null, initialConsultation
                   >
                     <span>📥</span> Exporter Excel (CSV)
                   </button>
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    accept=".json"
+                    onChange={handleImportArchive}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      flex: isMobile ? 1 : 'none',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(168, 85, 247, 0.15)',
+                      border: '1px solid rgba(168, 85, 247, 0.35)',
+                      color: '#c084fc',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                    title="Importer votre fichier d'archives personnelles JSON sans aucun partage externe"
+                  >
+                    <span>📂</span> Importer Archives
+                  </button>
                 </div>
               </div>
+
+              {/* Notification statut d'importation */}
+              {importStatus && (
+                <div style={{
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: importStatus.type === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                  border: importStatus.type === 'error' ? '1px solid #ef4444' : '1px solid #10b981',
+                  color: importStatus.type === 'error' ? '#f87171' : '#4ade80',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span>{importStatus.type === 'error' ? '⚠️' : '✓'}</span>
+                  <span>{importStatus.message}</span>
+                </div>
+              )}
+
+              {/* Si aucun historique n'est importé : Espace sécurisé */}
+              {availableReportYears.length === 0 && (
+                <div style={{
+                  background: '#1e293b',
+                  borderRadius: '14px',
+                  border: '1.5px dashed rgba(168, 85, 247, 0.4)',
+                  padding: isMobile ? '20px 16px' : '32px 24px',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{ fontSize: '2.4rem' }}>🔒</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
+                    Espace Comptable Privé & Cloisonné
+                  </div>
+                  <p style={{ maxWidth: '640px', fontSize: '0.86rem', color: '#94a3b8', lineHeight: 1.5, margin: 0 }}>
+                    Par respect absolu du secret médical et fiscal, <strong>aucun bilan comptable n'est partagé ou diffusé publiquement</strong>. Chaque praticien dispose de son propre espace local étanche.
+                    Vous pouvez charger votre fichier d'archives personnelles en toute sécurité : il sera conservé <strong>exclusivement sur cet appareil</strong>.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      marginTop: '6px',
+                      padding: '12px 24px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.92rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(124, 58, 237, 0.4)'
+                    }}
+                  >
+                    <span>📂</span> Charger mon fichier d'archives personnelles (.json)
+                  </button>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    Fichier local : <code>Mes logiciels et Applications/DocPocket Cabinet/Mes_Archives_Financieres_Dr_BEN_KHALIFA.json</code>
+                  </div>
+                </div>
+              )}
 
               {/* Cartes KPI Financières Consolidées */}
               <div style={{
