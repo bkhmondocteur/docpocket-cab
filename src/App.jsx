@@ -400,8 +400,15 @@ export default function App() {
         await performAutoBackupNow('sync_vers_pont_sauvegarde_recente');
       } else if (isMobileDevice()) {
         const pats = await getAllPatients();
-        if (isDemoDatabase(pats)) {
-          sendInitialSyncRequestFromMobile().catch(() => {});
+        if (isDemoDatabase(pats) || pats.length === 0) {
+          checkAndPullExistingBackup().then(async (pulled) => {
+            if (pulled) {
+              await refreshPatients();
+              setSyncIndicator({ state: 'synced', lastTime: Date.now(), label: '' });
+            } else {
+              sendInitialSyncRequestFromMobile().catch(() => {});
+            }
+          }).catch(() => {});
         }
       }
     }).catch(err => {

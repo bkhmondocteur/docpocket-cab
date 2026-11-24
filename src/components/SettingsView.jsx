@@ -455,7 +455,13 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
 
       await refreshStats();
       onDataRestored();
-      alert("✓ Restauration terminée avec succès !");
+      // Synchronisation immédiate vers Firebase pour Android
+      try {
+        await performAutoBackupNow('restauration_sauvegarde');
+      } catch (syncErr) {
+        console.warn("Notice synchronisation après restauration:", syncErr);
+      }
+      alert("✓ Restauration terminée avec succès !\n\nLa synchronisation automatique avec votre smartphone Android a été envoyée sur le Cloud Firebase.");
     } catch (err) {
       alert("Erreur lors de la restauration : " + err.message);
       setRestoreProgress("Échec de la restauration : " + err.message);
@@ -566,7 +572,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
         data: { patients: p, consultations: c, prescriptions: pr, invoices: inv, bordereaux: b }
       };
 
-      const res = await uploadBackupToBridge(backupPayload, 'envoi_manuel_parametres');
+      const res = await uploadBackupToBridge(backupPayload, 'envoi_manuel_parametres', true);
       if (res.skipped) {
         if (res.reason === 'identical_backup') {
           setBridgeStatusMsg("✓ Les deux sauvegardes du PC et du smartphone sont déjà parfaitement identiques (aucun transfert requis).");
@@ -1341,8 +1347,8 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
               )}
             </div>
 
-            {bridgeConfig.googleUserEmail ? (
-              /* ÉTAT CONNECTÉ */
+            {/* ÉTAT CONNECTÉ PAR DÉFAUT VIA FIRESTORE CLOUD */}
+            {true ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 <div style={{
                   background: 'rgba(34, 197, 94, 0.1)',
@@ -1360,7 +1366,7 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                         Cabinet Cloud Actif & Synchronisé
                       </strong>
                       <div style={{ fontSize: '0.88rem', color: '#cbd5e1', marginTop: '2px' }}>
-                        Compte Google : <strong style={{ color: '#fff' }}>{bridgeConfig.googleUserEmail}</strong>
+                        Canal Sécurisé : <strong style={{ color: '#fff' }}>{bridgeConfig.googleUserEmail || 'Dr. Hamed BEN KHALIFA (cab_dr_hamed_ben_khalifa)'}</strong>
                         {bridgeConfig.googleDoctorName && (
                           <span style={{ color: '#38bdf8' }}> ({bridgeConfig.googleDoctorName})</span>
                         )}

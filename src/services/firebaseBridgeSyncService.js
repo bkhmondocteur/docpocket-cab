@@ -103,7 +103,7 @@ export async function executePendingSignalWhenIdle() {
 }
 
 // Taille maximale d'un morceau pour ne pas dépasser les limites et minimiser la bande passante (150 Ko)
-const CHUNK_SIZE = 150 * 1024;
+const CHUNK_SIZE = 400 * 1024;
 
 // Configuration par défaut modifiable par le médecin (mode 'auto' par défaut pour zéro configuration)
 const DEFAULT_CONFIG = {
@@ -213,25 +213,30 @@ export function getBridgeChannelKey() {
   const cleanEmail = (cfg.googleUserEmail || '').toLowerCase().trim();
   const partition = getActiveLicensePartitionId ? getActiveLicensePartitionId() : 'primary';
   const lic = getLicenseStatus ? getLicenseStatus() : null;
-  const cleanKey = lic?.key ? lic.key.trim().toUpperCase() : 'NOKEY';
+  const cleanKey = lic?.key ? lic.key.trim().toUpperCase() : '';
 
-  // Hachage sécurisé : Email validé + Licence + Partition + Sel secret
-  const seed = `${cleanEmail}|${cleanKey}|${partition}|DOCPOCKET_CABINET_PRO_SALT_2026`;
-  let hash = 5381;
-  for (let i = 0; i < seed.length; i++) {
-    hash = ((hash << 5) + hash) + seed.charCodeAt(i);
-    hash = hash & 0xFFFFFFFF;
+  if (cleanEmail) {
+    const seed = `${cleanEmail}|DOCPOCKET_CABINET_PRO_SALT_2026`;
+    let hash = 5381;
+    for (let i = 0; i < seed.length; i++) {
+      hash = ((hash << 5) + hash) + seed.charCodeAt(i);
+      hash = hash & 0xFFFFFFFF;
+    }
+    const safeHash = Math.abs(hash).toString(16).padStart(8, '0');
+    const cleanPrefix = cleanEmail.split('@')[0].replace(/[^a-z0-9]/g, '').slice(0, 8);
+    return `cab_${cleanPrefix}_${safeHash}`;
   }
-  const safeHash = Math.abs(hash).toString(16).padStart(8, '0');
-  const cleanPrefix = cleanEmail ? cleanEmail.split('@')[0].replace(/[^a-z0-9]/g, '').slice(0, 8) : 'cab';
-  const cleanPart = partition.replace(/[^a-z0-9]/g, '').slice(0, 12);
 
-  return `cab_${cleanPart}_${cleanPrefix}_${safeHash}`;
+  if (cleanKey && cleanKey !== 'NOKEY' && !cleanKey.includes('TRIAL') && !cleanKey.includes('DEMO')) {
+    const cleanKeyId = cleanKey.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 16);
+    return `cab_lic_${cleanKeyId.toLowerCase()}`;
+  }
+
+  return 'cab_dr_hamed_ben_khalifa';
 }
 
 /**
  * Initialisation 100% automatique du cabinet dans le Cloud Firebase
- * sans aucune intervention technique du médecin acheteur
  */
 export async function autoProvisionCabinetCloud(email, doctorName = '') {
   if (!email || !email.includes('@')) {
@@ -248,26 +253,6 @@ export async function autoProvisionCabinetCloud(email, doctorName = '') {
   });
 
   const room = getBridgeChannelKey();
-  const metaPayload = {
-    ownerEmail: cleanEmail,
-    doctorName: doctorName || 'Praticien',
-    cabinetRoom: room,
-    provisionedAt: new Date().toISOString(),
-    lastDevice: getDeviceDisplayName(),
-    appVersion: '2.0.0',
-    status: 'active'
-  };
-
-  try {
-    await firebaseFetch('meta', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(metaPayload)
-    });
-  } catch (e) {
-    console.warn("Notice lors du provisionnement initial (tentative alternative) :", e);
-  }
-
   return {
     success: true,
     cabinetRoom: room,
@@ -277,127 +262,118 @@ export async function autoProvisionCabinetCloud(email, doctorName = '') {
 }
 
 // ==============================================================
-// 1. REQUÊTES REST PONT DE SYNCHRONISATION (FIREBASE ET AUTO-BRIDGE LOCAL/CLOUDFLARE)
+// 1. REQUÊTES REST CLOUD FIRESTORE OFFICIEL (PROJET docpocket-rdv)
 // ==============================================================
 
-export const DEFAULT_PUBLIC_TUNNEL_URL = 'https://issue-ross-emails-juice.trycloudflare.com';
-export const DEFAULT_LOCAL_WIFI_URL = 'http://192.168.1.103:5173';
+const FIRESTORE_CONFIG = {
+  projectId: 'docpocket-rdv',
+  apiKey: 'AIzaSyBHfojIB8BfwbJpbpwLJMm2RhGKmUnS8M4',
+  base: 'https://firestore.googleapis.com/v1/projects/docpocket-rdv/databases/(default)/documents'
+};
+
+export const DEFAULT_PUBLIC_TUNNEL_URL = 'https://firestore.googleapis.com';
+export const DEFAULT_LOCAL_WIFI_URL = 'https://firestore.googleapis.com';
+
+export function getBridgeBaseUrl() {
+  return FIRESTORE_CONFIG.base;
+}
 
 /**
- * Calcule l'URL de base du pont :
- * - Si le médecin a configuré une URL Firebase spécifique, l'utilise.
- * - Si le mode est 'auto' ou l'adresse par défaut :
- *   * Sur smartphone (Android/iOS) : cible toujours l'adresse Cloudflare accessible sur 4G/Wi-Fi.
- *   * Sur PC : utilise localhost ou l'origine courante.
+ * Client universel Cloud Firestore REST API pour la synchronisation PC <-> Mobile.
+ * Fonctionne directement sur le Web, Android, PC, 4G et Wi-Fi sans aucun serveur intermédiaire.
  */
-export function getBridgeBaseUrl(customConfig = null) {
-  const cfg = customConfig ? { ...getFirebaseBridgeConfig(), ...customConfig } : getFirebaseBridgeConfig();
-  let baseUrl = (cfg.databaseURL || '').trim();
-
-  // Si l'application s'exécute dans un navigateur Web (Mobile ou PC) avec une URL joignable
-  if (typeof window !== 'undefined' && window.location && window.location.origin) {
-    const origin = window.location.origin;
-    if (origin.startsWith('http') && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-      return origin;
-    }
-  }
-
-  // Détection du mode automatique ou URL périmée / invalide
-  const isAuto = !baseUrl || baseUrl === 'auto' ||
-    baseUrl.includes('docpocket-cabinet-default-rtdb') ||
-    (baseUrl.includes('trycloudflare.com') && !baseUrl.includes('issue-ross-emails-juice'));
-
-  if (isAuto) {
-    if (isMobileDevice()) {
-      return DEFAULT_PUBLIC_TUNNEL_URL;
-    }
-    return typeof window !== 'undefined' && window.location?.origin?.startsWith('http')
-      ? window.location.origin
-      : 'http://localhost:5173';
-  }
-
-  if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
-  if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-  return baseUrl;
-}
-
-function getFirebaseUrl(path) {
-  const cfg = getFirebaseBridgeConfig();
-  const room = getBridgeChannelKey();
-  const authParam = cfg.authToken ? `?auth=${encodeURIComponent(cfg.authToken)}` : '';
-  const baseUrl = getBridgeBaseUrl();
-  return `${baseUrl}/docpocket_bridge/${room}/${path}.json${authParam}`;
-}
-
 export async function firebaseFetch(path, options = {}) {
-  const url = getFirebaseUrl(path);
-  let res;
-  try {
-    res = await fetch(url, {
-      ...options,
+  const method = (options.method || 'GET').toUpperCase();
+  const room = getBridgeChannelKey();
+
+  // Normaliser le chemin en ID de document Firestore
+  let subName = path.replace(/\//g, '_');
+  if (subName.startsWith('payload_chunks_')) {
+    subName = 'chunk_' + subName.replace('payload_chunks_', '');
+  }
+  const docId = `${room}_${subName}`;
+  const url = `${FIRESTORE_CONFIG.base}/bridge_sync/${docId}?key=${FIRESTORE_CONFIG.apiKey}`;
+
+  if (method === 'GET') {
+    try {
+      const res = await fetch(url, { headers: { 'Content-Type': 'application/json' } });
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        throw new Error(`Erreur Firestore HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const raw = data.fields?.payload?.stringValue;
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return raw;
+      }
+    } catch (err) {
+      if (err.message && err.message.includes('404')) return null;
+      throw err;
+    }
+  }
+
+  if (method === 'PUT' || method === 'PATCH' || method === 'POST') {
+    const rawPayload = typeof options.body === 'string' ? options.body : JSON.stringify(options.body || {});
+    const body = JSON.stringify({
+      fields: {
+        payload: { stringValue: rawPayload },
+        updatedAt: { stringValue: new Date().toISOString() },
+        room: { stringValue: room }
+      }
+    });
+
+    const res = await fetch(url, {
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         ...(options.headers || {})
-      }
+      },
+      body
     });
-  } catch (netErr) {
-    // Si on est sur mobile et que la requête échoue, tenter l'alternative (Wi-Fi <-> Cloudflare)
-    const cfg = getFirebaseBridgeConfig();
-    const isAuto = !cfg.databaseURL || cfg.databaseURL === 'auto' || cfg.databaseURL.includes('trycloudflare.com') || cfg.databaseURL.includes('192.168.');
-    if (isMobileDevice() && isAuto) {
-      const currentBase = getBridgeBaseUrl();
-      const fallbackBase = currentBase.includes('trycloudflare') ? DEFAULT_LOCAL_WIFI_URL : DEFAULT_PUBLIC_TUNNEL_URL;
-      const room = getBridgeChannelKey();
-      const authParam = cfg.authToken ? `?auth=${encodeURIComponent(cfg.authToken)}` : '';
-      const fallbackUrl = `${fallbackBase}/docpocket_bridge/${room}/${path}.json${authParam}`;
-      try {
-        res = await fetch(fallbackUrl, {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            ...(options.headers || {})
-          }
-        });
-      } catch (fallbackErr) {
-        throw new Error(`Connexion impossible au pont (${netErr.message}). Vérifiez que votre PC est allumé avec DocPocket Cab.`);
-      }
-    } else {
-      throw new Error(`Connexion impossible au pont (${netErr.message}). Vérifiez votre connexion Internet et le serveur.`);
+
+    if (!res.ok) {
+      const errTxt = await res.text().catch(() => '');
+      throw new Error(`Erreur écriture Firestore HTTP ${res.status}: ${errTxt}`);
     }
+    return res.json();
   }
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    if (res.status === 404) {
-      throw new Error(`Base de données introuvable (Erreur 404). Vérifiez que l'URL est correcte ou passez en mode automatique.`);
+  if (method === 'DELETE') {
+    try {
+      const res = await fetch(url, { method: 'DELETE' });
+      return { ok: res.ok };
+    } catch {
+      return { ok: true };
     }
-    if (res.status === 401 || res.status === 403) {
-      throw new Error(`Accès refusé (Erreur ${res.status}) : Les règles de sécurité bloquent la synchronisation. Activez le mode test ({ ".read": true, ".write": true }).`);
-    }
-    throw new Error(`Erreur Pont (${res.status}) : ${errorText || res.statusText}`);
   }
-  return res.json();
 }
 
 /**
- * Teste la connectivité directe avec le pont configuré ou automatique
+ * Teste la connectivité directe avec Cloud Firestore
  */
 export async function testFirebaseBridgeConnection(customConfig = null) {
-  const cfg = customConfig ? { ...getFirebaseBridgeConfig(), ...customConfig } : getFirebaseBridgeConfig();
-  const baseUrl = getBridgeBaseUrl(cfg);
-  const isAuto = !cfg.databaseURL || cfg.databaseURL === 'auto' || cfg.databaseURL.includes('docpocket-cabinet-default-rtdb') || cfg.databaseURL.includes('trycloudflare.com');
-
-  const authParam = cfg.authToken ? `?auth=${encodeURIComponent(cfg.authToken)}` : '';
-  const testUrl = `${baseUrl}/docpocket_bridge/ping.json${authParam}`;
+  const room = getBridgeChannelKey();
+  const testDocId = `${room}_ping`;
+  const url = `${FIRESTORE_CONFIG.base}/bridge_sync/${testDocId}?key=${FIRESTORE_CONFIG.apiKey}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const res = await fetch(testUrl, {
-      method: 'PUT',
+    const body = JSON.stringify({
+      fields: {
+        payload: { stringValue: JSON.stringify({ ping: Date.now(), device: getDeviceDisplayName() }) },
+        updatedAt: { stringValue: new Date().toISOString() }
+      }
+    });
+
+    const res = await fetch(url, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ping: Date.now(), device: getDeviceDisplayName() }),
+      body,
       signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -405,25 +381,7 @@ export async function testFirebaseBridgeConnection(customConfig = null) {
     if (res.ok) {
       return {
         success: true,
-        message: isAuto
-          ? `✅ Connexion réussie ! Le pont automatique DocPocket Cab est opérationnel (${baseUrl.includes('trycloudflare') ? 'Passerelle Cloudflare 4G/Internet' : (baseUrl.includes('192.168.') ? 'Réseau Wi-Fi Cabinet' : 'Serveur Local')}).`
-          : '✅ Connexion réussie ! Votre Realtime Database Firebase est active et accessible en lecture/écriture.'
-      };
-    }
-
-    if (res.status === 404) {
-      return {
-        success: false,
-        status: 404,
-        message: "❌ Erreur 404 (Base non trouvée) : Cette adresse n'existe pas. Vous pouvez utiliser le mode automatique pour une synchronisation immédiate sans compte."
-      };
-    }
-
-    if (res.status === 401 || res.status === 403) {
-      return {
-        success: false,
-        status: res.status,
-        message: "❌ Accès refusé (Règles Firebase) : Votre base existe bien, mais les règles refusent l'écriture. Dans Firebase Console > Règles, passez en mode test : { \".read\": true, \".write\": true }."
+        message: `✅ Connexion réussie ! Le Cloud Firebase DocPocket Cab est 100% opérationnel pour ${room} (${getDeviceDisplayName()}).`
       };
     }
 
@@ -431,46 +389,13 @@ export async function testFirebaseBridgeConnection(customConfig = null) {
     return { success: false, status: res.status, message: `Erreur ${res.status} : ${txt || res.statusText}` };
   } catch (err) {
     clearTimeout(timeoutId);
-
-    // Fallback automatique de test sur mobile
-    if (isAuto && isMobileDevice()) {
-      const altUrl = baseUrl.includes('trycloudflare') ? DEFAULT_LOCAL_WIFI_URL : DEFAULT_PUBLIC_TUNNEL_URL;
-      try {
-        const altCtrl = new AbortController();
-        const altTo = setTimeout(() => altCtrl.abort(), 4000);
-        const altRes = await fetch(`${altUrl}/docpocket_bridge/ping.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ping: Date.now(), device: getDeviceDisplayName() }),
-          signal: altCtrl.signal
-        });
-        clearTimeout(altTo);
-        if (altRes.ok) {
-          saveFirebaseBridgeConfig({ databaseURL: altUrl });
-          return {
-            success: true,
-            message: `✅ Connexion réussie via ${altUrl.includes('trycloudflare') ? 'Passerelle Cloudflare 4G/Internet' : 'Réseau Wi-Fi Cabinet'} ! Ajustement automatique effectué.`
-          };
-        }
-      } catch {
-        // ignore
-      }
-    }
-
     return {
       success: false,
-      message: `Impossible de joindre le pont (${err.name === 'AbortError' ? 'Délai d\'attente dépassé' : err.message}). Vérifiez que le PC est allumé avec l'application ouverte.`
+      message: `❌ Erreur de connexion au Cloud Firebase : ${err.message}`
     };
   }
 }
 
-// ==============================================================
-// 2. DÉCOUPAGE EN MORCEAUX (CHUNKING) & ENVOI SUR LE PONT
-// ==============================================================
-
-/**
- * Calcule l'empreinte de contenu et le timestamp le plus récent de la sauvegarde locale
- */
 export function computeBackupFingerprint(backupData) {
   const p = backupData?.data?.patients || [];
   const c = backupData?.data?.consultations || [];
@@ -1318,37 +1243,10 @@ export function startBridgeListener() {
   // 1. Première vérification immédiate
   checkBridgeSignal();
 
-  // 2. Tenter la connexion EventSource (Server-Sent Events) pour le temps réel
-  try {
-    const sseUrl = getFirebaseUrl('signals/latest');
-    eventSource = new EventSource(sseUrl);
-
-    eventSource.onmessage = (e) => {
-      try {
-        const payload = JSON.parse(e.data);
-        if (payload && payload.data) {
-          handleIncomingSignal(payload.data);
-        }
-      } catch (err) {
-        // Ignorer
-      }
-    };
-
-    eventSource.onerror = () => {
-      // Si SSE échoue ou non supporté par la règle, basculer sur un polling doux
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-      }
-    };
-  } catch {
-    // Fallback polling
-  }
-
-  // 3. Polling de secours rapide (toutes les 5 secondes) pour une réactivité quasi-instantanée
+  // 2. Scrutation régulière ultra-légère toutes les 5 secondes (1 seule requête JSON légère)
   pollTimer = setInterval(checkBridgeSignal, 5000);
 
-  // 4. Écouteurs de réveil instantané (déverrouillage téléphone, focus onglet, retour en ligne)
+  // 3. Écouteurs de réveil instantané (déverrouillage téléphone, focus onglet, retour en ligne)
   if (typeof window !== 'undefined') {
     window.addEventListener('focus', onWindowWakeup);
     window.addEventListener('online', onWindowWakeup);
