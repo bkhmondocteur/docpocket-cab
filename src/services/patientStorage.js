@@ -387,7 +387,8 @@ export async function savePatient(patient) {
     }
 
     request.onsuccess = () => {
-      notifyDataChanged('save_patient', { id: request.result });
+      const savedPat = { ...patientData, id: patientData.id || request.result };
+      notifyDataChanged('save_patient', { id: request.result, data: savedPat });
       resolve(request.result);
     };
     request.onerror = () => reject(request.error);
@@ -402,7 +403,7 @@ export async function deletePatientById(id) {
     const request = store.delete(Number(id));
 
     request.onsuccess = () => {
-      notifyDataChanged('delete_patient', { id });
+      notifyDataChanged('delete_patient', { id, data: { id: Number(id) } });
       resolve(true);
     };
     request.onerror = () => reject(request.error);
@@ -869,7 +870,8 @@ export async function saveAppointment(appointment) {
     }
 
     request.onsuccess = () => {
-      notifyDataChanged('save_appointment', { id: request.result });
+      const savedAppt = { ...item, id: item.id || request.result };
+      notifyDataChanged('save_appointment', { id: request.result, data: savedAppt });
       resolve(request.result);
     };
     request.onerror = () => reject(request.error);
@@ -884,7 +886,7 @@ export async function deleteAppointment(id) {
     const request = store.delete(Number(id));
 
     request.onsuccess = () => {
-      notifyDataChanged('delete_appointment', { id });
+      notifyDataChanged('delete_appointment', { id, data: { id: Number(id) } });
       resolve(true);
     };
     request.onerror = () => reject(request.error);
@@ -968,7 +970,8 @@ export async function saveConsultation(consultation) {
         console.warn("Mise à jour dernière visite patient:", e);
       }
 
-      notifyDataChanged('save_consultation', { id: consultId, patientId: item.patientId });
+      const savedConsult = { ...item, id: consultId };
+      notifyDataChanged('save_consultation', { id: consultId, patientId: item.patientId, data: savedConsult });
       resolve(consultId);
     };
     request.onerror = () => reject(request.error);
@@ -984,7 +987,7 @@ export async function deleteConsultationById(id) {
     const request = store.delete(key);
 
     request.onsuccess = () => {
-      notifyDataChanged('delete_consultation', { id });
+      notifyDataChanged('delete_consultation', { id, data: { id: key } });
       resolve(true);
     };
     request.onerror = () => reject(request.error);
@@ -1050,7 +1053,8 @@ export async function savePrescription(prescription) {
     }
 
     request.onsuccess = () => {
-      notifyDataChanged('save_prescription', { id: request.result });
+      const savedPresc = { ...item, id: item.id || request.result };
+      notifyDataChanged('save_prescription', { id: request.result, data: savedPresc });
       resolve(request.result);
     };
     request.onerror = () => reject(request.error);
@@ -1065,7 +1069,7 @@ export async function deletePrescriptionById(id) {
     const request = store.delete(Number(id));
 
     request.onsuccess = () => {
-      notifyDataChanged('delete_prescription', { id });
+      notifyDataChanged('delete_prescription', { id, data: { id: Number(id) } });
       resolve(true);
     };
     request.onerror = () => reject(request.error);
@@ -1222,7 +1226,8 @@ export async function saveInvoice(invoice) {
     }
 
     request.onsuccess = () => {
-      notifyDataChanged('save_invoice', { id: request.result });
+      const savedInv = { ...item, id: item.id || request.result };
+      notifyDataChanged('save_invoice', { id: request.result, data: savedInv });
       resolve(request.result);
     };
     request.onerror = () => reject(request.error);
@@ -1267,7 +1272,7 @@ export async function deleteInvoiceById(id) {
     };
 
     tx.oncomplete = () => {
-      notifyDataChanged('delete_invoice', { id });
+      notifyDataChanged('delete_invoice', { id, data: { id: Number(id) } });
       resolve(true);
     };
     tx.onerror = () => reject(tx.error);
@@ -1632,7 +1637,7 @@ export async function saveCertificate(cert) {
     }
     req.onsuccess = () => {
       const saved = { ...item, id: item.id || req.result };
-      notifyDataChanged('save_certificate', { certificate: saved });
+      notifyDataChanged('save_certificate', { id: saved.id, data: saved });
       resolve(saved);
     };
     req.onerror = () => reject(req.error);
@@ -1646,7 +1651,7 @@ export async function deleteCertificate(id) {
     const store = tx.objectStore(STORE_CERTIFICATES);
     const req = store.delete(Number(id) || id);
     req.onsuccess = () => {
-      notifyDataChanged('delete_certificate', { id });
+      notifyDataChanged('delete_certificate', { id, data: { id: Number(id) || id } });
       resolve(true);
     };
     req.onerror = () => reject(req.error);

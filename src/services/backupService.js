@@ -5,12 +5,14 @@ import {
   getAllInvoices,
   getAllBordereaux,
   getAllCertificates,
+  getAppointments,
   savePatient,
   saveConsultation,
   savePrescription,
   saveInvoice,
   saveBordereau,
   saveCertificate,
+  saveAppointment,
   setSyncImporting,
   notifyDataChanged
 } from './patientStorage';
@@ -160,13 +162,14 @@ export function parseSqlDump(sqlContent) {
 // 3. SAUVEGARDE NATIVE DOCPOCKET CAB (.JSON)
 // ==============================================================
 export async function exportDocPocketBackup() {
-  const [patients, consultations, prescriptions, invoices, bordereaux, certificates] = await Promise.all([
+  const [patients, consultations, prescriptions, invoices, bordereaux, certificates, appointments] = await Promise.all([
     getAllPatients(),
     getAllConsultations(),
     getAllPrescriptions(),
     getAllInvoices(),
     getAllBordereaux(),
-    getAllCertificates()
+    getAllCertificates(),
+    getAppointments(null)
   ]);
 
   const doctorProfile = JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}');
@@ -185,7 +188,8 @@ export async function exportDocPocketBackup() {
       prescriptionsCount: prescriptions.length,
       invoicesCount: invoices.length,
       bordereauxCount: bordereaux.length,
-      certificatesCount: certificates.length
+      certificatesCount: certificates.length,
+      appointmentsCount: appointments.length
     },
     doctorProfile,
     data: {
@@ -194,7 +198,8 @@ export async function exportDocPocketBackup() {
       prescriptions,
       invoices,
       bordereaux,
-      certificates
+      certificates,
+      appointments
     }
   };
 
@@ -220,8 +225,8 @@ export async function restoreDocPocketBackup(jsonObj, mode = 'merge', onProgress
     throw new Error("Format de fichier de sauvegarde DocPocket Cab invalide.");
   }
 
-  const { patients = [], consultations = [], prescriptions = [], invoices = [], bordereaux = [], certificates = [] } = jsonObj.data;
-  let importedCount = { patients: 0, consultations: 0, prescriptions: 0, invoices: 0, certificates: 0 };
+  const { patients = [], consultations = [], prescriptions = [], invoices = [], bordereaux = [], certificates = [], appointments = [] } = jsonObj.data;
+  let importedCount = { patients: 0, consultations: 0, prescriptions: 0, invoices: 0, certificates: 0, appointments: 0 };
 
   // Profil médecin
   if (jsonObj.doctorProfile) {
@@ -281,6 +286,17 @@ export async function restoreDocPocketBackup(jsonObj, mode = 'merge', onProgress
         if (mode === 'merge') delete item.id;
         await saveCertificate(item);
         importedCount.certificates++;
+      }
+    }
+
+    // Rendez-vous / Agenda
+    if (appointments && appointments.length > 0) {
+      onProgress("Importation des rendez-vous de l'agenda...");
+      for (const appt of appointments) {
+        const item = { ...appt };
+        if (mode === 'merge') delete item.id;
+        await saveAppointment(item);
+        importedCount.appointments++;
       }
     }
   } finally {

@@ -5,7 +5,8 @@ import {
   saveAppointment, 
   deleteAppointment, 
   getAllPatients,
-  addToWaitingRoom 
+  addToWaitingRoom,
+  onDataChange
 } from '../services/patientStorage';
 import { triggerImmediateAutoBackup } from '../services/autoBackupService';
 import { 
@@ -74,15 +75,30 @@ export default function AgendaView({
     };
     window.addEventListener('docpocket_sms_license_changed', handleSmsLicenseChange);
 
+    const unsubData = onDataChange((evt) => {
+      if (evt.action?.includes('appointment') || evt.action?.includes('patient') || evt.action === 'bridge_sync_complete') {
+        loadData(true);
+      }
+    });
+
+    const handleDataSynced = (e) => {
+      if (e.detail?.entityType === 'appointment' || e.detail?.entityType === 'patient') {
+        loadData(true);
+      }
+    };
+    window.addEventListener('docpocket_data_synced', handleDataSynced);
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('docpocket_sms_license_changed', handleSmsLicenseChange);
+      window.removeEventListener('docpocket_data_synced', handleDataSynced);
+      if (unsubData) unsubData();
     };
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [appts, pList] = await Promise.all([
         getAppointments(selectedDate),
         getAllPatients()
@@ -92,7 +108,7 @@ export default function AgendaView({
     } catch (err) {
       console.error('Erreur chargement agenda:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 

@@ -10,6 +10,7 @@ import {
   getAllInvoices,
   getAllBordereaux,
   getAllCertificates,
+  getAppointments,
   onDataChange,
   isDemoDatabase
 } from './patientStorage';
@@ -122,13 +123,14 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
   notifySubscribers();
 
   try {
-    const [patients, consultations, prescriptions, invoices, bordereaux, certificates] = await Promise.all([
+    const [patients, consultations, prescriptions, invoices, bordereaux, certificates, appointments] = await Promise.all([
       getAllPatients(),
       getAllConsultations(),
       getAllPrescriptions(),
       getAllInvoices(),
       getAllBordereaux(),
-      getAllCertificates()
+      getAllCertificates(),
+      getAppointments(null)
     ]);
 
     const doctorProfile = JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}');
@@ -147,7 +149,8 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
         prescriptionsCount: prescriptions.length,
         invoicesCount: invoices.length,
         bordereauxCount: bordereaux.length,
-        certificatesCount: certificates.length
+        certificatesCount: certificates.length,
+        appointmentsCount: appointments.length
       },
       doctorProfile,
       data: {
@@ -156,7 +159,8 @@ export async function performAutoBackupNow(reason = 'modification_manuelle') {
         prescriptions,
         invoices,
         bordereaux,
-        certificates
+        certificates,
+        appointments
       }
     };
 

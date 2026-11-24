@@ -10,14 +10,23 @@ import {
   getAllInvoices,
   getAllBordereaux,
   getAllCertificates,
+  getAppointments,
   savePatient,
   saveConsultation,
   savePrescription,
   saveInvoice,
   saveBordereau,
   saveCertificate,
+  saveAppointment,
+  deletePatientById,
+  deleteConsultationById,
+  deletePrescriptionById,
+  deleteInvoiceById,
+  deleteCertificate,
+  deleteAppointment,
   setSyncImporting,
   notifyDataChanged,
+  onDataChange,
   isDemoDatabase,
   clearDemoDataIfPresent
 } from './patientStorage';
@@ -27,6 +36,17 @@ import { getSmsLicenseSyncPayload, autoActivateSmsOnMobile } from './smsLicenseS
 const CONFIG_STORAGE_KEY = 'docpocket_firebase_bridge_config';
 const LAST_SYNC_KEY = 'docpocket_bridge_last_sync_time';
 const DEVICE_ID_KEY = 'docpocket_bridge_device_id';
+const LAST_SIGNAL_ID_KEY = 'docpocket_bridge_last_signal_id';
+const LAST_DELTA_ID_KEY = 'docpocket_bridge_last_delta_id';
+
+let lastProcessedSignalId = '';
+let lastProcessedDeltaId = '';
+if (typeof localStorage !== 'undefined') {
+  try {
+    lastProcessedSignalId = localStorage.getItem(LAST_SIGNAL_ID_KEY) || '';
+    lastProcessedDeltaId = localStorage.getItem(LAST_DELTA_ID_KEY) || '';
+  } catch (e) {}
+}
 
 // ==============================================================
 // GESTION DU REPOS & INACTIVITÉ UTILISATEUR (SMART IDLE SYNC)
@@ -406,6 +426,8 @@ export function computeBackupFingerprint(backupData) {
   const pr = backupData?.data?.prescriptions || [];
   const inv = backupData?.data?.invoices || [];
   const b = backupData?.data?.bordereaux || [];
+  const certs = backupData?.data?.certificates || [];
+  const appts = backupData?.data?.appointments || [];
 
   let latestDataTime = 0;
   for (const item of c) {
@@ -424,12 +446,20 @@ export function computeBackupFingerprint(backupData) {
     const t = new Date(item.dateFacture || item.date || item.createdAt || 0).getTime();
     if (t > latestDataTime) latestDataTime = t;
   }
+  for (const item of appts) {
+    const t = new Date(item.updatedAt || item.createdAt || 0).getTime();
+    if (t > latestDataTime) latestDataTime = t;
+  }
+  for (const item of certs) {
+    const t = new Date(item.updatedAt || item.createdAt || 0).getTime();
+    if (t > latestDataTime) latestDataTime = t;
+  }
 
   if (!latestDataTime && backupData?.exportedAt) {
     latestDataTime = new Date(backupData.exportedAt).getTime();
   }
 
-  const countsStr = `p${p.length}_c${c.length}_pr${pr.length}_inv${inv.length}_b${b.length}`;
+  const countsStr = `p${p.length}_c${c.length}_pr${pr.length}_inv${inv.length}_b${b.length}_ap${appts.length}_ce${certs.length}`;
   const rawKey = `${countsStr}_t${latestDataTime}`;
   let hash = 5381;
   for (let i = 0; i < rawKey.length; i++) {
@@ -444,6 +474,8 @@ export function computeBackupFingerprint(backupData) {
     prescriptionsCount: pr.length,
     invoicesCount: inv.length,
     bordereauxCount: b.length,
+    certificatesCount: certs.length,
+    appointmentsCount: appts.length,
     latestDataTime,
     fingerprint: `${countsStr}_${hashHex}`
   };
@@ -552,7 +584,9 @@ export async function uploadBackupToBridge(backupData, reason = 'auto_sync', for
       consultationsCount: localFp.consultationsCount,
       prescriptionsCount: localFp.prescriptionsCount,
       invoicesCount: localFp.invoicesCount,
-      bordereauxCount: localFp.bordereauxCount
+      bordereauxCount: localFp.bordereauxCount,
+      certificatesCount: localFp.certificatesCount,
+      appointmentsCount: localFp.appointmentsCount
     },
     reason,
     smsRdvLicense: getSmsLicenseSyncPayload()
@@ -719,8 +753,15 @@ export async function smartDeduplicatingMerge(incomingData, onProgress = () => {
     }
 
     if (matchedLocalPatient) {
-      // Patient déjà existant : mise à jour intelligente des champs manquants sans dupliquer
-      const updated = {
+      // Patient déjà existant : mise à jour intelligente et complète
+      const isIncomingNewer = !matchedLocalPatient.updatedAt || !ip.updatedAt ||
+        new Date(ip.updatedAt).getTime() >= new Date(matchedLocalPatient.updatedAt).getTime();
+
+      const updated = isIncomingNewer ? {
+        ...matchedLocalPatient,
+        ...ip,
+        id: matchedLocalPatient.id // Préserver l'ID local IndexedDB
+      } : {
         ...matchedLocalPatient,
         telephone: ip.telephone || matchedLocalPatient.telephone,
         adress: ip.adress || matchedLocalPatient.adress,
@@ -769,11 +810,21 @@ export async function smartDeduplicatingMerge(incomingData, onProgress = () => {
       // On met à jour l'examen ou le diagnostic si complété
       const existing = localConsults.find(c => String(c.id) === idKey || `${c.patientId}_${c.date}_${(c.heure || '').slice(0, 5)}` === signature);
       if (existing) {
-        const updatedConsult = {
+        const isIncomingNewer = !existing.updatedAt || !ic.updatedAt ||
+          new Date(ic.updatedAt).getTime() >= new Date(existing.updatedAt).getTime();
+
+        const updatedConsult = isIncomingNewer ? {
+          ...existing,
+          ...ic,
+          id: existing.id,
+          patientId: mappedPatientId
+        } : {
           ...existing,
           patientId: mappedPatientId,
+          motif: ic.motif || existing.motif,
           examenClinique: ic.examenClinique || existing.examenClinique,
           diagnostic: ic.diagnostic || existing.diagnostic,
+          traitement: ic.traitement || existing.traitement,
           taMax: ic.taMax || existing.taMax,
           taMin: ic.taMin || existing.taMin,
           poids: ic.poids || existing.poids,
@@ -845,6 +896,33 @@ export async function smartDeduplicatingMerge(incomingData, onProgress = () => {
         });
         certLookup.add(String(ic.id));
         mergeReport.newCertificates++;
+      }
+    }
+  }
+
+  // 7. Rendez-vous de l'agenda
+  const inAppts = incomingData.data.appointments || [];
+  if (inAppts.length > 0) {
+    onProgress("Intégration des rendez-vous de l'agenda...");
+    const localAppts = await getAppointments(null);
+    const apptLookup = new Set();
+    for (const la of localAppts) {
+      apptLookup.add(String(la.id));
+      apptLookup.add(`${la.rdvDate}_${la.rdvTime}_${la.patientName || la.patientId}`);
+    }
+
+    for (const ia of inAppts) {
+      const mappedPatientId = ia.patientId ? (patientIdMap.get(String(ia.patientId)) || String(ia.patientId)) : null;
+      const signature = `${ia.rdvDate}_${ia.rdvTime}_${ia.patientName || mappedPatientId}`;
+      const idKey = String(ia.id);
+
+      if (!apptLookup.has(idKey) && !apptLookup.has(signature)) {
+        await saveAppointment({
+          ...ia,
+          patientId: mappedPatientId
+        });
+        apptLookup.add(signature);
+        mergeReport.newAppointments = (mergeReport.newAppointments || 0) + 1;
       }
     }
   }
@@ -1128,13 +1206,14 @@ async function handleIncomingSignal(signal) {
       });
 
       // Le PC prépare et envoie immédiatement sa dernière sauvegarde
-      const [patients, consultations, prescriptions, invoices, bordereaux, certificates] = await Promise.all([
+      const [patients, consultations, prescriptions, invoices, bordereaux, certificates, appointments] = await Promise.all([
         getAllPatients(),
         getAllConsultations(),
         getAllPrescriptions(),
         getAllInvoices(),
         getAllBordereaux(),
-        getAllCertificates()
+        getAllCertificates(),
+        getAppointments(null)
       ]);
 
       const doctorProfile = JSON.parse(localStorage.getItem('docpocket_doctor_profile') || '{}');
@@ -1148,11 +1227,12 @@ async function handleIncomingSignal(signal) {
           prescriptionsCount: prescriptions.length,
           invoicesCount: invoices.length,
           bordereauxCount: bordereaux.length,
-          certificatesCount: certificates.length
+          certificatesCount: certificates.length,
+          appointmentsCount: appointments.length
         },
         doctorProfile,
         smsRdvLicense: getSmsLicenseSyncPayload(),
-        data: { patients, consultations, prescriptions, invoices, bordereaux, certificates }
+        data: { patients, consultations, prescriptions, invoices, bordereaux, certificates, appointments }
       };
 
       await uploadBackupToBridge(payload, 'reponse_demande_initiale_mobile');
@@ -1166,8 +1246,12 @@ async function handleIncomingSignal(signal) {
 
   // CAS 2 : Une sauvegarde plus récente est disponible sur le pont -> Intégration asynchrone immédiate en arrière-plan
   if (signal.type === 'NEW_BACKUP_AVAILABLE' && cfg.autoSync) {
-    const lastSync = Number(localStorage.getItem(LAST_SYNC_KEY)) || 0;
-    if (signal.timestamp > lastSync) {
+    const signalId = `${signal.sourceDeviceId}_${signal.version || signal.timestamp}`;
+    if (signalId !== lastProcessedSignalId) {
+      lastProcessedSignalId = signalId;
+      try {
+        localStorage.setItem(LAST_SIGNAL_ID_KEY, signalId);
+      } catch (e) {}
       await processIncomingBackupSignal(signal);
     }
   }
@@ -1224,20 +1308,273 @@ async function processIncomingBackupSignal(signal) {
   }
 }
 
+// ==============================================================
+// 7. MICRO-SYNCHRONISATION DELTA INSTANTANÉE (< 2 Ko, ULTRA-FLUIDE)
+// Permet la synchronisation quasi-instantanée (1-3s) sans renvoyer
+// toute la sauvegarde ni ralentir l'appareil ou clignoter l'UI.
+// ==============================================================
+
+/**
+ * Diffuse immédiatement une modification atomique vers le pont Firebase
+ */
+export async function broadcastLocalDelta(action, entityType, data) {
+  const cfg = getFirebaseBridgeConfig();
+  if (!cfg.enabled) return;
+
+  const deviceId = getOrCreateDeviceId();
+  const deviceName = getDeviceDisplayName();
+  const isMobile = isMobileDevice();
+  const timestamp = Date.now();
+  const deltaId = `${deviceId}_${timestamp}_${Math.random().toString(36).substring(2, 7)}`;
+
+  lastProcessedDeltaId = deltaId;
+  try {
+    localStorage.setItem(LAST_DELTA_ID_KEY, deltaId);
+  } catch (e) {}
+
+  const deltaPayload = {
+    deltaId,
+    sourceDeviceId: deviceId,
+    sourceDeviceName: deviceName,
+    isMobile,
+    action,
+    entityType,
+    data,
+    timestamp
+  };
+
+  try {
+    await firebaseFetch('delta/latest', {
+      method: 'PUT',
+      body: JSON.stringify(deltaPayload)
+    });
+  } catch (err) {
+    console.warn("Erreur diffusion micro-delta pont:", err.message);
+  }
+}
+
+async function applyIncomingPatientDelta(data) {
+  if (!data) return;
+  const localPatients = await getAllPatients();
+  const dataCin = (data.cin || '').trim().toUpperCase();
+  const dataKey = `${(data.nom || '').trim().toUpperCase()}|${(data.prenom || '').trim().toUpperCase()}|${data.birthdate || ''}`;
+
+  let matched = null;
+  if (dataCin) {
+    matched = localPatients.find(p => p.cin && p.cin.trim().toUpperCase() === dataCin);
+  }
+  if (!matched && data.nom && data.prenom) {
+    matched = localPatients.find(p => {
+      const k = `${(p.nom || '').trim().toUpperCase()}|${(p.prenom || '').trim().toUpperCase()}|${p.birthdate || ''}`;
+      return k === dataKey;
+    });
+  }
+  if (!matched && data.id) {
+    matched = localPatients.find(p => String(p.id) === String(data.id));
+  }
+
+  if (matched) {
+    const updated = {
+      ...matched,
+      ...data,
+      id: matched.id // Toujours conserver l'ID local IndexedDB
+    };
+    await savePatient(updated);
+  } else {
+    const newPat = { ...data };
+    delete newPat.id;
+    await savePatient(newPat);
+  }
+}
+
+async function applyIncomingAppointmentDelta(data) {
+  if (!data) return;
+  const localAppts = await getAppointments(null);
+  const existing = localAppts.find(a =>
+    (data.id && String(a.id) === String(data.id)) ||
+    (a.rdvDate === data.rdvDate && a.rdvTime === data.rdvTime && (a.patientName === data.patientName || String(a.patientId) === String(data.patientId)))
+  );
+
+  if (existing) {
+    await saveAppointment({ ...existing, ...data, id: existing.id });
+  } else {
+    const newAppt = { ...data };
+    delete newAppt.id;
+    await saveAppointment(newAppt);
+  }
+}
+
+async function applyIncomingConsultationDelta(data) {
+  if (!data) return;
+  const localConsults = await getAllConsultations();
+  const existing = localConsults.find(c =>
+    (data.id && String(c.id) === String(data.id)) ||
+    (String(c.patientId) === String(data.patientId) && c.date === data.date && (c.heure || '').slice(0, 5) === (data.heure || '').slice(0, 5))
+  );
+
+  if (existing) {
+    await saveConsultation({ ...existing, ...data, id: existing.id });
+  } else {
+    const newConsult = { ...data };
+    delete newConsult.id;
+    await saveConsultation(newConsult);
+  }
+}
+
+async function applyIncomingPrescriptionDelta(data) {
+  if (!data) return;
+  const localPrescs = await getAllPrescriptions();
+  const existing = localPrescs.find(p => data.id && String(p.id) === String(data.id));
+  if (existing) {
+    await savePrescription({ ...existing, ...data, id: existing.id });
+  } else {
+    const newPresc = { ...data };
+    delete newPresc.id;
+    await savePrescription(newPresc);
+  }
+}
+
+async function applyIncomingInvoiceDelta(data) {
+  if (!data) return;
+  const localInvs = await getAllInvoices();
+  const existing = localInvs.find(i =>
+    (data.id && String(i.id) === String(data.id)) ||
+    (data.numFacture && i.numFacture === data.numFacture)
+  );
+  if (existing) {
+    await saveInvoice({ ...existing, ...data, id: existing.id });
+  } else {
+    const newInv = { ...data };
+    delete newInv.id;
+    await saveInvoice(newInv);
+  }
+}
+
+async function applyIncomingCertificateDelta(data) {
+  if (!data) return;
+  const localCerts = await getAllCertificates();
+  const existing = localCerts.find(c => data.id && String(c.id) === String(data.id));
+  if (existing) {
+    await saveCertificate({ ...existing, ...data, id: existing.id });
+  } else {
+    const newCert = { ...data };
+    delete newCert.id;
+    await saveCertificate(newCert);
+  }
+}
+
+/**
+ * Traite un micro-delta reçu depuis Firebase
+ */
+async function handleIncomingDelta(delta) {
+  if (!delta || !delta.deltaId) return;
+  const myDeviceId = getOrCreateDeviceId();
+  // Ignorer nos propres signaux
+  if (delta.sourceDeviceId === myDeviceId) return;
+  if (delta.deltaId === lastProcessedDeltaId) return;
+
+  lastProcessedDeltaId = delta.deltaId;
+  try {
+    localStorage.setItem(LAST_DELTA_ID_KEY, delta.deltaId);
+  } catch (e) {}
+
+  const { action, entityType, data } = delta;
+  if (!data && !action?.startsWith('delete_')) return;
+
+  setSyncImporting(true);
+  try {
+    if (action === 'save_patient' || entityType === 'patient') {
+      await applyIncomingPatientDelta(data);
+    } else if (action === 'delete_patient') {
+      if (data?.id) await deletePatientById(data.id);
+    } else if (action === 'save_appointment' || entityType === 'appointment') {
+      await applyIncomingAppointmentDelta(data);
+    } else if (action === 'delete_appointment') {
+      if (data?.id) await deleteAppointment(data.id);
+    } else if (action === 'save_consultation' || entityType === 'consultation') {
+      await applyIncomingConsultationDelta(data);
+    } else if (action === 'delete_consultation') {
+      if (data?.id) await deleteConsultationById(data.id);
+    } else if (action === 'save_prescription' || entityType === 'prescription') {
+      await applyIncomingPrescriptionDelta(data);
+    } else if (action === 'delete_prescription') {
+      if (data?.id) await deletePrescriptionById(data.id);
+    } else if (action === 'save_invoice' || entityType === 'invoice') {
+      await applyIncomingInvoiceDelta(data);
+    } else if (action === 'delete_invoice') {
+      if (data?.id) await deleteInvoiceById(data.id);
+    } else if (action === 'save_certificate' || entityType === 'certificate') {
+      await applyIncomingCertificateDelta(data);
+    } else if (action === 'delete_certificate') {
+      if (data?.id) await deleteCertificate(data.id);
+    }
+
+    notifyBridgeSubscribers({
+      type: 'SYNC_COMPLETE',
+      isDelta: true,
+      action,
+      entityType,
+      message: `✓ Synchronisé : ${entityType} mis à jour depuis ${delta.sourceDeviceName || 'l\'autre appareil'} !`
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('docpocket_data_synced', {
+        detail: { action, entityType, data }
+      }));
+    }
+  } catch (err) {
+    console.warn("Erreur application micro-delta entrant:", err);
+  } finally {
+    setSyncImporting(false);
+  }
+}
+
+let isDeltaSyncInitialized = false;
+
+export function initBridgeDeltaSync() {
+  if (isDeltaSyncInitialized) return;
+  isDeltaSyncInitialized = true;
+
+  onDataChange(async ({ action, details }) => {
+    // Si nous sommes en train d'importer une synchronisation, ne pas ré-émettre (anti-rebond)
+    if (isSyncImporting) return;
+    const cfg = getFirebaseBridgeConfig();
+    if (!cfg.enabled) return;
+
+    if (action.startsWith('save_') || action.startsWith('delete_')) {
+      const entityType = action.replace('save_', '').replace('delete_', '');
+      const data = details?.data || details?.patient || details?.certificate || { id: details?.id };
+      await broadcastLocalDelta(action, entityType, data);
+    }
+  });
+}
+
+let isCheckingSignal = false;
+
 /**
  * Vérifie périodiquement s'il y a un nouveau signal (très léger, 1 seul appel JSON)
  */
 async function checkBridgeSignal() {
   const cfg = getFirebaseBridgeConfig();
-  if (!cfg.enabled) return;
+  if (!cfg.enabled || isCheckingSignal) return;
 
+  isCheckingSignal = true;
   try {
-    const latestSignal = await firebaseFetch('signals/latest');
+    const [latestDelta, latestSignal] = await Promise.all([
+      firebaseFetch('delta/latest').catch(() => null),
+      firebaseFetch('signals/latest').catch(() => null)
+    ]);
+
+    if (latestDelta) {
+      await handleIncomingDelta(latestDelta);
+    }
     if (latestSignal) {
       await handleIncomingSignal(latestSignal);
     }
   } catch (err) {
     // Silencieux pour ne pas polluer la console en cas de coupure réseau
+  } finally {
+    isCheckingSignal = false;
   }
 }
 
@@ -1281,6 +1618,9 @@ export function startBridgeListener() {
   stopBridgeListener();
   const cfg = getFirebaseBridgeConfig();
   if (!cfg.enabled) return;
+
+  // Initialisation de la micro-synchronisation delta automatique sur changements locaux
+  initBridgeDeltaSync();
 
   // 1. Première vérification immédiate
   checkBridgeSignal();

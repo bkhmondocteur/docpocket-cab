@@ -364,8 +364,14 @@ export default function App() {
   useEffect(() => {
     startBridgeListener();
     const unsub = subscribeBridgeSync((evt) => {
-      if (evt.type === 'SYNC_COMPLETE' || evt.type === 'UPLOADED_SUCCESS' || evt.type === 'SYNC_UP_TO_DATE') {
-        refreshPatients();
+      if (evt.type === 'SYNC_COMPLETE') {
+        refreshPatients(searchQuery, true);
+        setSyncIndicator({
+          state: 'synced',
+          lastTime: Date.now(),
+          label: ''
+        });
+      } else if (evt.type === 'UPLOADED_SUCCESS' || evt.type === 'SYNC_UP_TO_DATE') {
         setSyncIndicator({
           state: 'synced',
           lastTime: Date.now(),
@@ -393,7 +399,7 @@ export default function App() {
     // Détecte silencieusement la sauvegarde la plus récente sur Firebase
     autoSyncWithLatestBridge().then(async (res) => {
       if (res && res.action === 'pulled') {
-        await refreshPatients();
+        await refreshPatients(searchQuery, true);
         setSyncIndicator({ state: 'synced', lastTime: Date.now(), label: '' });
       } else if (res && res.action === 'push_needed') {
         console.log("Synchronisation : publication de la base la plus récente vers le pont Firebase...");
@@ -403,7 +409,7 @@ export default function App() {
         if (isDemoDatabase(pats) || pats.length === 0) {
           checkAndPullExistingBackup().then(async (pulled) => {
             if (pulled) {
-              await refreshPatients();
+              await refreshPatients(searchQuery, true);
               setSyncIndicator({ state: 'synced', lastTime: Date.now(), label: '' });
             } else {
               sendInitialSyncRequestFromMobile().catch(() => {});
@@ -436,10 +442,15 @@ export default function App() {
   const [selectedPatientIds, setSelectedPatientIds] = useState([]);
   const [mergeModalData, setMergeModalData] = useState(null);
 
+  const [initialPatientsLoaded, setInitialPatientsLoaded] = useState(false);
+
   // Charger la liste des patients depuis IndexedDB (PWA offline)
-  const refreshPatients = async (query = '') => {
+  // Par défaut silent=true pour ne jamais faire clignoter ni recharger l'UI brutalement
+  const refreshPatients = async (query = '', silent = true) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const data = await getAllPatients(query);
       setPatients(data);
 
@@ -456,7 +467,9 @@ export default function App() {
     } catch (err) {
       console.error('Erreur chargement patients:', err);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -485,7 +498,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    refreshPatients(searchQuery);
+    // Premier chargement avec indicateur initial, puis mises à jour 100% discrètes et fluides
+    const isFirst = !initialPatientsLoaded;
+    refreshPatients(searchQuery, !isFirst).then(() => {
+      if (isFirst) setInitialPatientsLoaded(true);
+    });
   }, [searchQuery]);
 
   const handleOpenAddModal = (preset = null) => {
