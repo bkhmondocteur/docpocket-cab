@@ -1,5 +1,7 @@
 // IndexedDB Storage Adapter complet pour PWA / Mode Hors-Ligne
 import historicalBordereaux from '../data/historicalBordereaux.json';
+import historicalInvoices from '../data/historicalInvoices.json';
+import historicalFinancialReports from '../data/historicalFinancialReports.json';
 import { getActiveDBName, getActivePractitionerId, getActivePractitioner } from './practitionerService';
 
 const DB_VERSION = 6; // Montée de version pour Facturation, Quittances & Bordereaux CNAM (Bloc 5)
@@ -1061,7 +1063,11 @@ export async function deletePrescriptionById(id) {
 // STORE FACTURATION, HONORAIRES & QUITTANCES (Bloc 5)
 // ==============================================================
 
-const INITIAL_INVOICES = [];
+const INITIAL_INVOICES = Array.isArray(historicalInvoices) ? historicalInvoices : [];
+
+export function getHistoricalFinancialReports() {
+  return historicalFinancialReports || { monthlyReports: [], yearlySummaries: {} };
+}
 
 export async function getAllInvoices() {
   const db = await openDB();
@@ -1081,8 +1087,15 @@ export async function getAllInvoices() {
         });
         list = list.filter(inv => !demoNumFacs.includes(inv.numFacture) && !demoNames.includes((inv.patientName || '').trim().toUpperCase()));
       }
-      list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-      resolve(list);
+
+      // Fusion avec les factures et règlements historiques sans doublons
+      const existingIds = new Set(list.map(i => String(i.id)));
+      const extra = (getActivePractitionerId() === 'primary' || !getActivePractitionerId())
+        ? INITIAL_INVOICES.filter(h => !existingIds.has(String(h.id)))
+        : [];
+      const merged = [...list, ...extra];
+      merged.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+      resolve(merged);
     };
     getAllRequest.onerror = () => reject(getAllRequest.error);
   });

@@ -9,7 +9,8 @@ import {
   saveBordereau,
   deleteBordereauById,
   parseCnamBordereauTxt,
-  clearUnsettledConsultation
+  clearUnsettledConsultation,
+  getHistoricalFinancialReports
 } from '../services/patientStorage';
 import { generateReceiptReport } from '../services/receiptReportGenerator';
 import { generateCnamBordereauReport, exportCnamBordereauCSV } from '../services/cnamBordereauGenerator';
@@ -68,6 +69,15 @@ export default function BillingView({ initialPatient = null, initialConsultation
   // Journal de caisse & Factures
   const [invoicesList, setInvoicesList] = useState([]);
   const [journalPeriod, setJournalPeriod] = useState('mois'); // 'jour' | 'semaine' | 'mois' | 'tout'
+
+  // Bilans Mensuels & Annuels Consolidés (Historique complet)
+  const [financialReports, setFinancialReports] = useState(() => getHistoricalFinancialReports());
+  const [journalSubTab, setJournalSubTab] = useState('bilans'); // 'bilans' | 'quittances'
+  const [reportYearFilter, setReportYearFilter] = useState('2026');
+  const [reportMonthFilter, setReportMonthFilter] = useState('TOUS');
+  const [expandedMonthId, setExpandedMonthId] = useState(null);
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+  const [invoicesDisplayLimit, setInvoicesDisplayLimit] = useState(50);
 
   // Charger les données initiales
   const refreshData = async () => {
@@ -458,6 +468,198 @@ export default function BillingView({ initialPatient = null, initialConsultation
   const kpiTotalCnam = filteredInvoices.reduce((acc, i) => acc + (Number(i.partCnam) || 0), 0);
   const kpiTotalChiffreAffaires = filteredInvoices.reduce((acc, i) => acc + (Number(i.totalGlobal) || 0), 0);
   const kpiTotalActes = filteredInvoices.reduce((acc, i) => acc + (i.actes?.length || 1), 0);
+
+  // Années disponibles dans les bilans financiers
+  const availableReportYears = Object.keys(financialReports.yearlySummaries || {}).sort((a, b) => b.localeCompare(a));
+
+  // Filtrage des bilans mensuels
+  const filteredMonthlyReports = (financialReports.monthlyReports || []).filter(rep => {
+    if (reportYearFilter !== 'TOUS' && rep.annee !== reportYearFilter) return false;
+    if (reportMonthFilter !== 'TOUS' && rep.mois !== reportMonthFilter) return false;
+    return true;
+  });
+
+  // KPI consolidés pour la période de rapport sélectionnée
+  const reportKpiPatients = filteredMonthlyReports.reduce((acc, m) => acc + (m.totalPatients || 0), 0);
+  const reportKpiConsTp = filteredMonthlyReports.reduce((acc, m) => acc + (m.totalConsTp || 0), 0);
+  const reportKpiHorsCnam = filteredMonthlyReports.reduce((acc, m) => acc + (m.totalHorsCnam || 0), 0);
+  const reportKpiPercu = filteredMonthlyReports.reduce((acc, m) => acc + (m.totalPercuDirect || 0), 0);
+  const reportKpiCnam = filteredMonthlyReports.reduce((acc, m) => acc + (m.totalPartCnam || 0), 0);
+  const reportKpiTM = filteredMonthlyReports.reduce((acc, m) => acc + (m.totalTicketModerateur || 0), 0);
+  const reportKpiCA = filteredMonthlyReports.reduce((acc, m) => acc + (m.chiffreAffairesGlobal || 0), 0);
+  const reportKpiReste = filteredMonthlyReports.reduce((acc, m) => acc + (m.soldeImpaye || 0), 0);
+
+  // Recherche dans les factures détaillées
+  const searchedInvoices = invoicesList.filter(inv => {
+    if (!invoiceSearchQuery.trim()) return true;
+    const q = invoiceSearchQuery.toLowerCase().trim();
+    return (
+      (inv.patientName && inv.patientName.toLowerCase().includes(q)) ||
+      (inv.numFacture && inv.numFacture.toLowerCase().includes(q)) ||
+      (inv.date && inv.date.includes(q)) ||
+      (inv.patientCnamId && inv.patientCnamId.includes(q))
+    );
+  });
+
+  const periodFilteredInvoices = searchedInvoices.filter(inv => {
+    if (!inv.date) return false;
+    const invDate = new Date(inv.date);
+    if (journalPeriod === 'jour') {
+      return inv.date === now.toISOString().split('T')[0];
+    } else if (journalPeriod === 'semaine') {
+      const diffDays = (now - invDate) / (1000 * 60 * 60 * 24);
+      return diffDays <= 7 && diffDays >= 0;
+    } else if (journalPeriod === 'mois') {
+      return invDate.getMonth() === now.getMonth() && invDate.getFullYear() === now.getFullYear();
+    }
+    return true;
+  });
+
+  const handlePrintFinancialReport = () => {
+    const title = reportYearFilter === 'TOUS' 
+      ? 'Bilan Global des Honoraires & Recettes (2020 - 2026)'
+      : `Bilan Fiscal des Honoraires & Recettes - Année ${reportYearFilter}`;
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert("Veuillez autoriser les fenêtres contextuelles pour imprimer le bilan.");
+      return;
+    }
+
+    const rowsHtml = filteredMonthlyReports.map((m, idx) => `
+      <tr style="border-bottom: 1px solid #cbd5e1; background: ${idx % 2 === 0 ? '#f8fafc' : '#ffffff'};">
+        <td style="padding: 8px 10px; font-weight: bold;">${m.moisNom || m.periode}</td>
+        <td style="padding: 8px 10px; text-align: center;">${m.totalPatients}</td>
+        <td style="padding: 8px 10px; text-align: center; color: #0284c7;">${m.totalConsTp}</td>
+        <td style="padding: 8px 10px; text-align: center;">${m.totalHorsCnam}</td>
+        <td style="padding: 8px 10px; text-align: right; color: #0369a1; font-weight: 600;">${(m.totalPartCnam || 0).toFixed(3)} DT</td>
+        <td style="padding: 8px 10px; text-align: right;">${(m.totalTicketModerateur || 0).toFixed(3)} DT</td>
+        <td style="padding: 8px 10px; text-align: right; color: #15803d; font-weight: bold;">${(m.totalPercuDirect || 0).toFixed(3)} DT</td>
+        <td style="padding: 8px 10px; text-align: right; font-weight: bold;">${(m.chiffreAffairesGlobal || 0).toFixed(3)} DT</td>
+      </tr>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${title}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 30px; color: #0f172a; }
+          .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 25px; }
+          .dr-info { font-size: 14px; line-height: 1.4; }
+          .dr-name { font-size: 20px; font-weight: 800; color: #0369a1; }
+          .title { text-align: center; font-size: 18px; font-weight: 800; text-transform: uppercase; margin: 20px 0; color: #0f172a; }
+          .kpi-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+          .kpi-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #f8fafc; text-align: center; }
+          .kpi-title { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px; }
+          .kpi-val { font-size: 18px; font-weight: 900; color: #0f172a; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 30px; }
+          th { background: #0284c7; color: #ffffff; padding: 10px; text-align: left; }
+          .total-row { font-weight: 900; background: #e2e8f0 !important; border-top: 2px solid #0284c7; border-bottom: 2px solid #0284c7; }
+          .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; }
+          .signature-box { width: 220px; text-align: center; border-top: 1px dashed #64748b; padding-top: 10px; margin-top: 50px; }
+          @media print {
+            body { margin: 15mm; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="dr-info">
+            <div class="dr-name">Dr. Hamed BEN KHALIFA</div>
+            <div>Médecine Générale & Addictologie</div>
+            <div>Conventionné CNAM • Identifiant : 010002763183</div>
+            <div>Mahdia, Tunisie • Tél : 53 573 117</div>
+          </div>
+          <div style="text-align: right; font-size: 12px; color: #64748b;">
+            <div>DocPocket Cab • Comptabilité</div>
+            <div>Édité le : ${new Date().toLocaleDateString('fr-FR')}</div>
+          </div>
+        </div>
+
+        <div class="title">${title}</div>
+
+        <div class="kpi-bar">
+          <div class="kpi-card">
+            <div class="kpi-title">Honoraires Perçus (Espèces/Chèques)</div>
+            <div class="kpi-val" style="color: #15803d;">${reportKpiPercu.toFixed(3)} DT</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Créances / Remboursements CNAM</div>
+            <div class="kpi-val" style="color: #0369a1;">${reportKpiCnam.toFixed(3)} DT</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Chiffre d'Affaires Global</div>
+            <div class="kpi-val">${reportKpiCA.toFixed(3)} DT</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Patients & Consultations</div>
+            <div class="kpi-val" style="color: #d97706;">${reportKpiPatients}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Période / Mois</th>
+              <th style="text-align: center;">Patients</th>
+              <th style="text-align: center;">Cons. TP</th>
+              <th style="text-align: center;">Hors CNAM</th>
+              <th style="text-align: right;">Part CNAM</th>
+              <th style="text-align: right;">Ticket Mod.</th>
+              <th style="text-align: right;">Encaissé Direct</th>
+              <th style="text-align: right;">CA Global</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+            <tr class="total-row">
+              <td style="padding: 10px;">TOTAL ${reportYearFilter === 'TOUS' ? 'CONSOLIDÉ' : reportYearFilter}</td>
+              <td style="padding: 10px; text-align: center;">${reportKpiPatients}</td>
+              <td style="padding: 10px; text-align: center;">${reportKpiConsTp}</td>
+              <td style="padding: 10px; text-align: center;">${reportKpiHorsCnam}</td>
+              <td style="padding: 10px; text-align: right; color: #0369a1;">${reportKpiCnam.toFixed(3)} DT</td>
+              <td style="padding: 10px; text-align: right;">${reportKpiTM.toFixed(3)} DT</td>
+              <td style="padding: 10px; text-align: right; color: #15803d;">${reportKpiPercu.toFixed(3)} DT</td>
+              <td style="padding: 10px; text-align: right;">${reportKpiCA.toFixed(3)} DT</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div>Document certifié conforme pour la déclaration fiscale et comptable annuelle.</div>
+          <div class="signature-box">
+            Signature & Cachet du Praticien
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
+  const handleExportFinancialCSV = () => {
+    let csv = '\uFEFFPériode;Année;Mois;Patients;Consultations TP CNAM;Hors CNAM;Part CNAM (DT);Ticket Modérateur (DT);Encaissé Direct (DT);Chiffre Affaires Global (DT);Solde Impayé (DT)\r\n';
+    filteredMonthlyReports.forEach(m => {
+      csv += `"${m.moisNom || m.periode}";${m.annee};${m.mois};${m.totalPatients};${m.totalConsTp};${m.totalHorsCnam};${(m.totalPartCnam||0).toFixed(3)};${(m.totalTicketModerateur||0).toFixed(3)};${(m.totalPercuDirect||0).toFixed(3)};${(m.chiffreAffairesGlobal||0).toFixed(3)};${(m.soldeImpaye||0).toFixed(3)}\r\n`;
+    });
+    csv += `"TOTAL CONSOLIDÉ";${reportYearFilter};"-";${reportKpiPatients};${reportKpiConsTp};${reportKpiHorsCnam};${reportKpiCnam.toFixed(3)};${reportKpiTM.toFixed(3)};${reportKpiPercu.toFixed(3)};${reportKpiCA.toFixed(3)};${reportKpiReste.toFixed(3)}\r\n`;
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bilan_financier_${reportYearFilter}_docpocket.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Suggestions d'actes pour la recherche
   const actesFiltered = acteSearch.trim() === ''
@@ -2680,366 +2882,606 @@ export default function BillingView({ initialPatient = null, initialConsultation
       {/* ============================================================== */}
       {activeTab === 'journal' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '14px' : '20px' }}>
-          {/* Cartes KPI Financières Adaptatives */}
+          {/* Sous-Navigation du Journal Finances : Bilans Consolidés vs Détail Quittances */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-            gap: isMobile ? '10px' : '16px'
+            display: 'flex',
+            gap: '8px',
+            background: '#0f172a',
+            padding: '6px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            flexWrap: 'wrap'
           }}>
-            <div style={{
-              background: '#1e293b',
-              padding: isMobile ? '12px' : '18px',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
-            }}>
-              <div style={{ fontSize: isMobile ? '0.72rem' : '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
-                💰 Encaissé Patient
-              </div>
-              <div style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 900, color: '#4ade80', marginTop: '4px' }}>
-                {kpiTotalPatient.toFixed(3)} <span style={{ fontSize: '0.75rem' }}>DT</span>
-              </div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
-                Perçu au cabinet
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setJournalSubTab('bilans')}
+              style={{
+                flex: isMobile ? 1 : 'none',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: journalSubTab === 'bilans' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
+                color: journalSubTab === 'bilans' ? '#fff' : '#94a3b8',
+                fontWeight: journalSubTab === 'bilans' ? 700 : 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontSize: isMobile ? '0.8rem' : '0.88rem'
+              }}
+            >
+              <span>📈</span> Bilans Mensuels & Annuels Consolidés
+            </button>
 
-            <div style={{
-              background: '#1e293b',
-              padding: isMobile ? '12px' : '18px',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
-            }}>
-              <div style={{ fontSize: isMobile ? '0.72rem' : '0.8rem', color: '#38bdf8', textTransform: 'uppercase', fontWeight: 600 }}>
-                🏛️ Créances CNAM
-              </div>
-              <div style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 900, color: '#38bdf8', marginTop: '4px' }}>
-                {kpiTotalCnam.toFixed(3)} <span style={{ fontSize: '0.75rem' }}>DT</span>
-              </div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
-                Prise en charge CNAM
-              </div>
-            </div>
-
-            <div style={{
-              background: '#1e293b',
-              padding: isMobile ? '12px' : '18px',
-              borderRadius: '12px',
-              border: '1.5px solid #0284c7'
-            }}>
-              <div style={{ fontSize: isMobile ? '0.72rem' : '0.8rem', color: '#cbd5e1', textTransform: 'uppercase', fontWeight: 600 }}>
-                📈 CA Global
-              </div>
-              <div style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 900, color: '#f8fafc', marginTop: '4px' }}>
-                {kpiTotalChiffreAffaires.toFixed(3)} <span style={{ fontSize: '0.75rem' }}>DT</span>
-              </div>
-              <div style={{ fontSize: '0.7rem', color: '#38bdf8', marginTop: '2px' }}>
-                Honoraires totaux
-              </div>
-            </div>
-
-            <div style={{
-              background: '#1e293b',
-              padding: isMobile ? '12px' : '18px',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
-            }}>
-              <div style={{ fontSize: isMobile ? '0.72rem' : '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
-                🧾 Prestations / Actes
-              </div>
-              <div style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 900, color: '#f59e0b', marginTop: '4px' }}>
-                {kpiTotalActes}
-              </div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
-                Sur {filteredInvoices.length} factures
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setJournalSubTab('quittances')}
+              style={{
+                flex: isMobile ? 1 : 'none',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: journalSubTab === 'quittances' ? 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' : 'transparent',
+                color: journalSubTab === 'quittances' ? '#fff' : '#94a3b8',
+                fontWeight: journalSubTab === 'quittances' ? 700 : 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontSize: isMobile ? '0.8rem' : '0.88rem'
+              }}
+            >
+              <span>🧾</span> Quittances & Factures Détaillées ({periodFilteredInvoices.length})
+            </button>
           </div>
 
-          {/* Filtres de Période & Tableau des Factures */}
-          <div style={{
-            background: '#1e293b',
-            padding: isMobile ? '14px' : '20px',
-            borderRadius: '12px',
-            border: '1px solid rgba(255, 255, 255, 0.08)'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: isMobile ? 'stretch' : 'center',
-              flexDirection: isMobile ? 'column' : 'row',
-              gap: '12px',
-              marginBottom: '16px'
-            }}>
-              <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.15rem', color: '#38bdf8' }}>
-                Journal des Quittances & Règlements ({filteredInvoices.length})
-              </h3>
+          {/* ============================================================== */}
+          {/* VUE 1 : BILANS MENSUELS & ANNUELS CONSOLIDÉS                   */}
+          {/* ============================================================== */}
+          {journalSubTab === 'bilans' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '14px' : '20px' }}>
+              {/* Barre de Filtrage par Année & Mois + Boutons d'Action Fiscale */}
+              <div style={{
+                background: '#1e293b',
+                padding: isMobile ? '12px 14px' : '16px 20px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                justifyContent: 'space-between',
+                alignItems: isMobile ? 'stretch' : 'center',
+                gap: '12px',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600 }}>📅 Année :</span>
+                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    {availableReportYears.map(yr => (
+                      <button
+                        key={yr}
+                        type="button"
+                        onClick={() => { setReportYearFilter(yr); setReportMonthFilter('TOUS'); }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: reportYearFilter === yr ? '1.5px solid #38bdf8' : '1px solid #334155',
+                          background: reportYearFilter === yr ? 'rgba(56, 189, 248, 0.2)' : '#0f172a',
+                          color: reportYearFilter === yr ? '#38bdf8' : '#cbd5e1',
+                          fontWeight: reportYearFilter === yr ? 700 : 500,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {yr}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => { setReportYearFilter('TOUS'); setReportMonthFilter('TOUS'); }}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: reportYearFilter === 'TOUS' ? '1.5px solid #38bdf8' : '1px solid #334155',
+                        background: reportYearFilter === 'TOUS' ? 'rgba(56, 189, 248, 0.2)' : '#0f172a',
+                        color: reportYearFilter === 'TOUS' ? '#38bdf8' : '#cbd5e1',
+                        fontWeight: reportYearFilter === 'TOUS' ? 700 : 500,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Toutes
+                    </button>
+                  </div>
+                </div>
 
+                {/* Actions : Impression Fiscale & Export CSV */}
+                <div style={{ display: 'flex', gap: '8px', justifyContent: isMobile ? 'stretch' : 'flex-end', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handlePrintFinancialReport}
+                    style={{
+                      flex: isMobile ? 1 : 'none',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      color: '#38bdf8',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                    title="Imprimer le bilan fiscal officiel avec en-tête et signature"
+                  >
+                    <span>🖨️</span> Imprimer Bilan Fiscal
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportFinancialCSV}
+                    style={{
+                      flex: isMobile ? 1 : 'none',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                      color: '#34d399',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                    title="Exporter le tableau sous format Excel CSV"
+                  >
+                    <span>📥</span> Exporter Excel (CSV)
+                  </button>
+                </div>
+              </div>
+
+              {/* Cartes KPI Financières Consolidées */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '6px'
+                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                gap: isMobile ? '10px' : '16px'
               }}>
-                {['jour', 'semaine', 'mois', 'tout'].map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setJournalPeriod(p)}
-                    style={{
-                      padding: '7px 6px',
-                      borderRadius: '6px',
-                      background: journalPeriod === p ? '#0284c7' : '#0f172a',
-                      border: '1px solid #334155',
-                      color: journalPeriod === p ? '#fff' : '#94a3b8',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textAlign: 'center'
-                    }}
-                  >
-                    {p === 'jour' ? "Aujourd'hui" : (p === 'semaine' ? 'Semaine' : (p === 'mois' ? 'Ce Mois' : 'Tout'))}
-                  </button>
-                ))}
+                <div style={{
+                  background: '#1e293b',
+                  padding: isMobile ? '12px' : '18px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}>
+                  <div style={{ fontSize: isMobile ? '0.72rem' : '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
+                    💰 Encaissé Cabinet
+                  </div>
+                  <div style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 900, color: '#4ade80', marginTop: '4px' }}>
+                    {reportKpiPercu.toFixed(3)} <span style={{ fontSize: '0.75rem' }}>DT</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                    Espèces & Chèques perçus
+                  </div>
+                </div>
+
+                <div style={{
+                  background: '#1e293b',
+                  padding: isMobile ? '12px' : '18px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}>
+                  <div style={{ fontSize: isMobile ? '0.72rem' : '0.8rem', color: '#38bdf8', textTransform: 'uppercase', fontWeight: 600 }}>
+                    🏛️ Prise en Charge CNAM
+                  </div>
+                  <div style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 900, color: '#38bdf8', marginTop: '4px' }}>
+                    {reportKpiCnam.toFixed(3)} <span style={{ fontSize: '0.75rem' }}>DT</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                    Tiers-payant caisse
+                  </div>
+                </div>
+
+                <div style={{
+                  background: '#1e293b',
+                  padding: isMobile ? '12px' : '18px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #0284c7'
+                }}>
+                  <div style={{ fontSize: isMobile ? '0.72rem' : '0.8rem', color: '#cbd5e1', textTransform: 'uppercase', fontWeight: 600 }}>
+                    📈 CA Global
+                  </div>
+                  <div style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 900, color: '#f8fafc', marginTop: '4px' }}>
+                    {reportKpiCA.toFixed(3)} <span style={{ fontSize: '0.75rem' }}>DT</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#38bdf8', marginTop: '2px' }}>
+                    Honoraires totaux
+                  </div>
+                </div>
+
+                <div style={{
+                  background: '#1e293b',
+                  padding: isMobile ? '12px' : '18px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}>
+                  <div style={{ fontSize: isMobile ? '0.72rem' : '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
+                    👥 Patients & Actes
+                  </div>
+                  <div style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: 900, color: '#f59e0b', marginTop: '4px' }}>
+                    {reportKpiPatients}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                    {reportKpiConsTp} TP CNAM • {reportKpiHorsCnam} Hors CNAM
+                  </div>
+                </div>
+              </div>
+
+              {/* Tableau Récapitulatif Mensuel */}
+              <div style={{
+                background: '#1e293b',
+                padding: isMobile ? '14px' : '20px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: isMobile ? '1rem' : '1.15rem', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <span>📋 Répartition Mensuelle des Recettes ({filteredMonthlyReports.length} mois)</span>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400 }}>
+                    Année sélectionnée : <strong style={{ color: '#fff' }}>{reportYearFilter}</strong>
+                  </span>
+                </h3>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #334155', color: '#94a3b8', textAlign: 'left', background: '#0f172a' }}>
+                        <th style={{ padding: '10px 12px' }}>Période / Mois</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'center' }}>Patients</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'center', color: '#38bdf8' }}>Cons. TP CNAM</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'center' }}>Hors CNAM</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', color: '#38bdf8' }}>Part CNAM</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>Ticket Mod.</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', color: '#4ade80' }}>Encaissé Cabinet</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800 }}>CA Global</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'center' }}>Détail</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredMonthlyReports.map(m => {
+                        const isExpanded = expandedMonthId === m.id;
+                        return (
+                          <React.Fragment key={m.id}>
+                            <tr style={{
+                              borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                              background: isExpanded ? 'rgba(56, 189, 248, 0.08)' : 'transparent',
+                              transition: 'background 0.2s'
+                            }}>
+                              <td style={{ padding: '10px 12px', fontWeight: 700, color: '#f8fafc', whiteSpace: 'nowrap' }}>
+                                {m.moisNom || m.periode}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>
+                                {m.totalPatients}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center', color: '#38bdf8', fontWeight: 600 }}>
+                                {m.totalConsTp}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center', color: '#cbd5e1' }}>
+                                {m.totalHorsCnam}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', color: '#38bdf8', fontWeight: 700 }}>
+                                {(m.totalPartCnam || 0).toFixed(3)} DT
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8' }}>
+                                {(m.totalTicketModerateur || 0).toFixed(3)} DT
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', color: '#4ade80', fontWeight: 700 }}>
+                                {(m.totalPercuDirect || 0).toFixed(3)} DT
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#f8fafc' }}>
+                                {(m.chiffreAffairesGlobal || 0).toFixed(3)} DT
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                {m.jours && m.jours.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedMonthId(isExpanded ? null : m.id)}
+                                    style={{
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      background: isExpanded ? '#0284c7' : 'rgba(255, 255, 255, 0.06)',
+                                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                                      color: isExpanded ? '#fff' : '#cbd5e1',
+                                      cursor: 'pointer',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    {isExpanded ? '▲ Masquer' : '▼ Journées'}
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Historique</span>
+                                )}
+                              </td>
+                            </tr>
+
+                            {/* Sous-Tableau Journalier Dépliable */}
+                            {isExpanded && m.jours && m.jours.length > 0 && (
+                              <tr>
+                                <td colSpan={9} style={{ padding: '14px', background: '#0b1324' }}>
+                                  <div style={{ marginBottom: '8px', fontSize: '0.8rem', color: '#38bdf8', fontWeight: 700 }}>
+                                    📅 Détail Quotidien des Recettes ({m.moisNom || m.periode}) - {m.jours.length} journées ouvrées
+                                  </div>
+                                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                                      <thead>
+                                        <tr style={{ background: '#1e293b', color: '#94a3b8', borderBottom: '1px solid #334155' }}>
+                                          <th style={{ padding: '6px 8px' }}>Date</th>
+                                          <th style={{ padding: '6px 8px', textAlign: 'center' }}>Patients</th>
+                                          <th style={{ padding: '6px 8px', textAlign: 'center' }}>Cons. TP</th>
+                                          <th style={{ padding: '6px 8px', textAlign: 'center' }}>Hors CNAM</th>
+                                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Part CNAM</th>
+                                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Ticket Mod.</th>
+                                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Encaissé</th>
+                                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Total Jour</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {m.jours.map((j, jIdx) => (
+                                          <tr key={jIdx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                                            <td style={{ padding: '5px 8px', fontWeight: 600, color: '#f8fafc' }}>{j.date}</td>
+                                            <td style={{ padding: '5px 8px', textAlign: 'center' }}>{j.nbre}</td>
+                                            <td style={{ padding: '5px 8px', textAlign: 'center', color: '#38bdf8' }}>{j.cons_tp}</td>
+                                            <td style={{ padding: '5px 8px', textAlign: 'center' }}>{j.hors_cnam}</td>
+                                            <td style={{ padding: '5px 8px', textAlign: 'right', color: '#38bdf8' }}>{(j.mtt_cnam || 0).toFixed(3)} DT</td>
+                                            <td style={{ padding: '5px 8px', textAlign: 'right' }}>{(j.tm_percu || 0).toFixed(3)} DT</td>
+                                            <td style={{ padding: '5px 8px', textAlign: 'right', color: '#4ade80', fontWeight: 700 }}>{(j.mtt_percu || 0).toFixed(3)} DT</td>
+                                            <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{(j.total_payer || 0).toFixed(3)} DT</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+
+                      {/* LIGNE DE TOTAL CONSOLIDÉ */}
+                      <tr style={{
+                        background: 'rgba(2, 132, 199, 0.15)',
+                        borderTop: '2px solid #0284c7',
+                        fontWeight: 900
+                      }}>
+                        <td style={{ padding: '12px', color: '#38bdf8', fontSize: '0.9rem' }}>
+                          TOTAL {reportYearFilter === 'TOUS' ? 'CONSOLIDÉ' : reportYearFilter}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '0.9rem' }}>
+                          {reportKpiPatients}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'center', color: '#38bdf8', fontSize: '0.9rem' }}>
+                          {reportKpiConsTp}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '0.9rem' }}>
+                          {reportKpiHorsCnam}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right', color: '#38bdf8', fontSize: '0.9rem' }}>
+                          {reportKpiCnam.toFixed(3)} DT
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right', fontSize: '0.9rem' }}>
+                          {reportKpiTM.toFixed(3)} DT
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right', color: '#4ade80', fontSize: '0.95rem' }}>
+                          {reportKpiPercu.toFixed(3)} DT
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right', color: '#f8fafc', fontSize: '0.95rem' }}>
+                          {reportKpiCA.toFixed(3)} DT
+                        </td>
+                        <td style={{ padding: '12px' }}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
+          )}
 
-            {filteredInvoices.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8', background: '#0f172a', borderRadius: '8px', fontSize: '0.85rem' }}>
-                Aucun règlement enregistré pour cette période.
-              </div>
-            ) : isMobile ? (
-              /* VUE CARTE MOBILE DU JOURNAL */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {filteredInvoices.map(inv => (
-                  <div
-                    key={inv.id}
-                    style={{
-                      background: '#0f172a',
-                      padding: '12px',
-                      borderRadius: '10px',
-                      border: '1px solid #334155',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                    }}
-                  >
-                    {/* Ligne 1 : Numéro, Date, Régime */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 700, color: '#38bdf8', fontSize: '0.85rem', fontFamily: 'monospace' }}>
-                          {inv.numFacture || `FAC-${inv.id}`}
-                        </span>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem' }}>{inv.date}</span>
-                      </div>
-                      <span style={{
-                        fontSize: '0.72rem',
-                        padding: '2px 8px',
+          {/* ============================================================== */}
+          {/* VUE 2 : QUITTANCES & FACTURES INDIVIDUELLES                   */}
+          {/* ============================================================== */}
+          {journalSubTab === 'quittances' && (
+            <div style={{
+              background: '#1e293b',
+              padding: isMobile ? '14px' : '20px',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: isMobile ? 'stretch' : 'center',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: '12px',
+                marginBottom: '16px'
+              }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.15rem', color: '#38bdf8' }}>
+                    Journal des Quittances & Règlements ({periodFilteredInvoices.length})
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                    Recherche directe dans l'ensemble des quittances courantes et historiques
+                  </span>
+                </div>
+
+                {/* Filtres de Période Rapide */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '6px'
+                }}>
+                  {['jour', 'semaine', 'mois', 'tout'].map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setJournalPeriod(p)}
+                      style={{
+                        padding: '7px 6px',
                         borderRadius: '6px',
-                        fontWeight: 700,
-                        background: inv.modeReglement === 'gratuit' ? 'rgba(168, 85, 247, 0.2)' : inv.modeReglement === 'cnam_apci' ? 'rgba(217, 119, 6, 0.2)' : inv.modeReglement === 'cnam_mo' ? 'rgba(5, 150, 105, 0.2)' : 'rgba(56, 189, 248, 0.2)',
-                        color: inv.modeReglement === 'gratuit' ? '#c084fc' : inv.modeReglement === 'cnam_apci' ? '#fbbf24' : inv.modeReglement === 'cnam_mo' ? '#34d399' : '#38bdf8'
-                      }}>
-                        {inv.modeReglement === 'gratuit' ? '🎁 Gratuit' : inv.modeReglement === 'cnam_apci' ? '★ APCI' : inv.modeReglement === 'cnam_mo' ? '🏛️ CNAM' : '💵 Comptant'}
-                      </span>
-                    </div>
+                        background: journalPeriod === p ? '#0284c7' : '#0f172a',
+                        border: '1px solid #334155',
+                        color: journalPeriod === p ? '#fff' : '#94a3b8',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      {p === 'jour' ? "Aujourd'hui" : (p === 'semaine' ? 'Semaine' : (p === 'mois' ? 'Ce Mois' : 'Tout'))}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                    {/* Ligne 2 : Nom patient & Modalité */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.92rem' }}>
-                        {inv.patientName}
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'capitalize' }}>
-                        {inv.moyenPaiement}
-                      </span>
-                    </div>
+              {/* Champ de Recherche Multi-critère */}
+              <div style={{ marginBottom: '14px' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Rechercher par nom de patient, n° quittance, matricule CNAM ou date..."
+                  value={invoiceSearchQuery}
+                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: '#0f172a',
+                    border: '1px solid #334155',
+                    color: '#fff',
+                    fontSize: '0.88rem',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
 
-                    {/* Ligne 3 : Détail Chiffré */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '0.8rem',
-                      paddingTop: '6px',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.06)'
-                    }}>
-                      <span style={{ color: '#94a3b8' }}>Total: <strong>{(inv.totalGlobal || 0).toFixed(3)}</strong></span>
-                      <span style={{ color: '#4ade80' }}>Payé: <strong>{(inv.partPatient || 0).toFixed(3)} DT</strong></span>
-                      {inv.partCnam > 0 && (
-                        <span style={{ color: '#38bdf8' }}>CNAM: <strong>{(inv.partCnam || 0).toFixed(3)}</strong></span>
-                      )}
-                    </div>
-
-                    {/* Ligne 4 : Actions */}
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '8px',
-                      marginTop: '4px'
-                    }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const pat = patients.find(p => p.id === inv.patientId) || {
-                            fullname: inv.patientName,
-                            cnamid: inv.patientCnamId,
-                            caisse: inv.patientCaisse,
-                            cin: inv.patientCin,
-                            apci: inv.patientApci,
-                            apciLabel: inv.patientApciLabel
-                          };
-                          generateReceiptReport(pat, inv);
-                        }}
-                        style={{
-                          padding: '7px 10px',
-                          borderRadius: '6px',
-                          background: '#0284c7',
-                          border: 'none',
-                          color: '#fff',
-                          cursor: 'pointer',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '5px'
-                        }}
-                        title="Ré-imprimer la quittance en PDF"
-                      >
-                        <span>🖨️</span> Quittance
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteInvoice(inv)}
-                        style={{
-                          padding: '7px 10px',
-                          borderRadius: '6px',
-                          background: 'rgba(239, 68, 68, 0.15)',
-                          border: '1px solid rgba(239, 68, 68, 0.4)',
-                          color: '#f87171',
-                          cursor: 'pointer',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '5px'
-                        }}
-                        title="Supprimer définitivement ce paiement"
-                      >
-                        <span>🗑️</span> Supprimer
-                      </button>
-                    </div>
+              {periodFilteredInvoices.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8', background: '#0f172a', borderRadius: '8px', fontSize: '0.85rem' }}>
+                  Aucune quittance correspondant aux critères de recherche.
+                </div>
+              ) : (
+                <>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', textAlign: 'left', background: '#0f172a' }}>
+                          <th style={{ padding: '10px' }}>N° Quittance</th>
+                          <th style={{ padding: '10px' }}>Date</th>
+                          <th style={{ padding: '10px' }}>Patient</th>
+                          <th style={{ padding: '10px' }}>Prise en Charge</th>
+                          <th style={{ padding: '10px' }}>Moyen</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Total (DT)</th>
+                          <th style={{ padding: '10px', textAlign: 'right', color: '#4ade80' }}>Payé Patient</th>
+                          <th style={{ padding: '10px', textAlign: 'right', color: '#38bdf8' }}>Part CNAM</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {periodFilteredInvoices.slice(0, invoicesDisplayLimit).map(inv => (
+                          <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                            <td style={{ padding: '10px', fontWeight: 600, color: '#38bdf8', fontFamily: 'monospace' }}>
+                              {inv.numFacture || `FAC-${inv.id}`}
+                            </td>
+                            <td style={{ padding: '10px', whiteSpace: 'nowrap' }}>{inv.date}</td>
+                            <td style={{ padding: '10px', fontWeight: 600, color: '#f8fafc' }}>
+                              {inv.patientName}
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                              {inv.modeReglement === 'cnam_apci' && (
+                                <span style={{ color: '#f59e0b', fontWeight: 700 }}>★ CNAM APCI</span>
+                              )}
+                              {inv.modeReglement === 'cnam_mo' && (
+                                <span style={{ color: '#34d399', fontWeight: 600 }}>🏛️ CNAM MO</span>
+                              )}
+                              {inv.modeReglement === 'comptant' && (
+                                <span style={{ color: '#cbd5e1' }}>💵 Comptant</span>
+                              )}
+                              {inv.modeReglement === 'gratuit' && (
+                                <span style={{ color: '#c084fc', fontWeight: 600 }}>🎁 Gratuit</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px', textTransform: 'capitalize', color: '#94a3b8' }}>
+                              {inv.moyenPaiement}
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'right', fontWeight: 600 }}>
+                              {(inv.totalGlobal || 0).toFixed(3)}
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'right', color: '#4ade80', fontWeight: 700 }}>
+                              {(inv.partPatient || 0).toFixed(3)}
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'right', color: '#38bdf8', fontWeight: 700 }}>
+                              {(inv.partCnam || 0).toFixed(3)}
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const pat = patients.find(p => p.id === inv.patientId) || {
+                                    fullname: inv.patientName,
+                                    cnamid: inv.patientCnamId,
+                                    caisse: inv.patientCaisse,
+                                    cin: inv.patientCin,
+                                    apci: inv.patientApci,
+                                    apciLabel: inv.patientApciLabel
+                                  };
+                                  generateReceiptReport(pat, inv);
+                                }}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: '6px',
+                                  background: '#0284c7',
+                                  border: 'none',
+                                  color: '#fff',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 600
+                                }}
+                                title="Imprimer ou rééditer cette quittance"
+                              >
+                                🖨️ Quittance
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                ))}
-              </div>
-            ) : (
-              /* VUE TABLEAU DESKTOP DU JOURNAL */
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', textAlign: 'left' }}>
-                      <th style={{ padding: '10px' }}>N° Facture</th>
-                      <th style={{ padding: '10px' }}>Date</th>
-                      <th style={{ padding: '10px' }}>Patient</th>
-                      <th style={{ padding: '10px' }}>Mode Prise en Charge</th>
-                      <th style={{ padding: '10px' }}>Moyen Paiement</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Total (DT)</th>
-                      <th style={{ padding: '10px', textAlign: 'right', color: '#4ade80' }}>Payé Patient</th>
-                      <th style={{ padding: '10px', textAlign: 'right', color: '#38bdf8' }}>Part CNAM</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredInvoices.map(inv => (
-                      <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                        <td style={{ padding: '10px', fontWeight: 600, color: '#38bdf8' }}>
-                          {inv.numFacture || `FAC-${inv.id}`}
-                        </td>
-                        <td style={{ padding: '10px', whiteSpace: 'nowrap' }}>{inv.date}</td>
-                        <td style={{ padding: '10px', fontWeight: 600, color: '#f8fafc' }}>
-                          {inv.patientName}
-                        </td>
-                        <td style={{ padding: '10px' }}>
-                          {inv.modeReglement === 'cnam_apci' && (
-                            <span style={{ color: '#f59e0b', fontWeight: 700 }}>★ CNAM APCI</span>
-                          )}
-                          {inv.modeReglement === 'cnam_mo' && (
-                            <span style={{ color: '#34d399', fontWeight: 600 }}>🏛️ CNAM MO</span>
-                          )}
-                          {inv.modeReglement === 'comptant' && (
-                            <span style={{ color: '#cbd5e1' }}>💵 Comptant</span>
-                          )}
-                          {inv.modeReglement === 'gratuit' && (
-                            <span style={{ color: '#c084fc', fontWeight: 600 }}>🎁 Gratuit</span>
-                          )}
-                        </td>
-                        <td style={{ padding: '10px', textTransform: 'capitalize', color: '#94a3b8' }}>
-                          {inv.moyenPaiement}
-                        </td>
-                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: 600 }}>
-                          {(inv.totalGlobal || 0).toFixed(3)}
-                        </td>
-                        <td style={{ padding: '10px', textAlign: 'right', color: '#4ade80', fontWeight: 700 }}>
-                          {(inv.partPatient || 0).toFixed(3)}
-                        </td>
-                        <td style={{ padding: '10px', textAlign: 'right', color: '#38bdf8', fontWeight: 700 }}>
-                          {(inv.partCnam || 0).toFixed(3)}
-                        </td>
-                        <td style={{ padding: '10px', textAlign: 'right' }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const pat = patients.find(p => p.id === inv.patientId) || {
-                                  fullname: inv.patientName,
-                                  cnamid: inv.patientCnamId,
-                                  caisse: inv.patientCaisse,
-                                  cin: inv.patientCin,
-                                  apci: inv.patientApci,
-                                  apciLabel: inv.patientApciLabel
-                                };
-                                generateReceiptReport(pat, inv);
-                              }}
-                              style={{
-                                padding: '5px 10px',
-                                borderRadius: '6px',
-                                background: '#0284c7',
-                                border: 'none',
-                                color: '#fff',
-                                cursor: 'pointer',
-                                fontSize: '0.8rem',
-                                fontWeight: 600
-                              }}
-                              title="Ré-imprimer la quittance en PDF"
-                            >
-                              🖨️ Quittance
-                            </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteInvoice(inv)}
-                              style={{
-                                padding: '5px 10px',
-                                borderRadius: '6px',
-                                background: 'rgba(239, 68, 68, 0.12)',
-                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                color: '#f87171',
-                                cursor: 'pointer',
-                                fontSize: '0.8rem',
-                                fontWeight: 600
-                              }}
-                              title="Supprimer définitivement ce paiement"
-                            >
-                              🗑️ Supprimer
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                  {periodFilteredInvoices.length > invoicesDisplayLimit && (
+                    <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setInvoicesDisplayLimit(prev => prev + 50)}
+                        style={{
+                          padding: '8px 20px',
+                          borderRadius: '8px',
+                          background: 'rgba(56, 189, 248, 0.15)',
+                          border: '1px solid rgba(56, 189, 248, 0.35)',
+                          color: '#38bdf8',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        + Afficher 50 quittances supplémentaires ({invoicesDisplayLimit} / {periodFilteredInvoices.length})
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
