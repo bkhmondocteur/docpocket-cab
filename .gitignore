@@ -12,6 +12,7 @@ dist
 dist-ssr
 dist-electron
 public/downloads
+scripts
 *.local
 
 # Editor directories and files
