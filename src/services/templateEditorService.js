@@ -312,6 +312,33 @@ Prière au laboratoire d'analyses médicales d'effectuer pour le/la patient(e) :
 - Examen Cytobactériologique des Urines (ECBU) si leucocyturie
 
 Résultats à communiquer au médecin traitant.`
+  },
+
+  // 11. Modèle Demande d'Imagerie Médicale & Radiologie
+  {
+    id: 'presc_demande_imagerie',
+    type: 'prescription',
+    category: 'ordonnance',
+    title: 'Demande d\'Imagerie Médicale & Radiologie',
+    description: 'Prescription d\'examens radiologiques, échographie, scanner ou IRM',
+    paperFormat: 'A5',
+    orientation: 'portrait',
+    fontSize: '11pt',
+    margins: { top: 40, bottom: 25, left: 18, right: 18 },
+    showHeader: true,
+    showStamp: true,
+    showSignature: true,
+    body: `Patient(e) : {nom_complet}
+Âge : {age} | Date : {date_du_jour}
+
+Prière au centre de radiologie et d'imagerie médicale d'effectuer pour le/la patient(e) :
+
+- {liste_medicaments}
+
+Renseignements cliniques :
+{diagnostic}
+
+Merci de bien vouloir communiquer les clichés et le compte-rendu radiologique.`
   }
 ];
 

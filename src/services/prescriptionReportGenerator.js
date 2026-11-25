@@ -156,6 +156,12 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
         </div>
       </div>
     `;
+  } else if (activeFormat === 'biologie' || prescription.type === 'biologie') {
+    titreOrdonnance = 'DEMANDE D\'ANALYSES MÉDICALES (BILAN BIOLOGIQUE)';
+    badgeColor = '#059669';
+  } else if (activeFormat === 'imagerie' || prescription.type === 'imagerie' || activeFormat === 'radiologie' || prescription.type === 'radiologie') {
+    titreOrdonnance = 'DEMANDE D\'EXAMENS D\'IMAGERIE MÉDICALE & RADIOLOGIE';
+    badgeColor = '#0284c7';
   }
 
   const items = prescription.items || [];
@@ -674,6 +680,12 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
       <div class="prescription-title">${titreOrdonnance}</div>
     </div>
 
+    ${((prescription.type === 'biologie' || prescription.type === 'imagerie' || activeFormat === 'biologie' || activeFormat === 'imagerie') && prescription.indication) ? `
+      <div style="margin-bottom: ${isA5 ? '8px' : '12px'}; font-size: ${isA5 ? '11px' : '12.5px'}; color: #1e293b; background: #f8fafc; padding: 5px 10px; border-radius: 4px; border-left: 3px solid ${badgeColor};">
+        <strong style="color: #0f172a;">Renseignements cliniques :</strong> ${prescription.indication}
+      </div>
+    ` : ''}
+
     <!-- Liste des Médicaments Prescrits (Adaptée à la largeur A5) -->
     <ul class="presc-list">
       ${items.map((item, idx) => `
@@ -715,7 +727,7 @@ export function buildPrescriptionHtml(patient, prescription, chosenFormat = null
     <!-- Bas de Page & Signature (Date unique en bas de page) -->
     <div class="prescription-footer">
       <div class="arrete-box">
-        ${settings.showLineCount ? `Arrêtée la présente ordonnance à <strong>${items.length}</strong> ligne(s).<br>` : ''}
+        ${settings.showLineCount ? `Arrêtée la présente ordonnance à <strong>${items.length}</strong> ${(prescription.type === 'biologie' || activeFormat === 'biologie') ? 'analyse(s)' : (prescription.type === 'imagerie' || activeFormat === 'imagerie') ? 'examen(s)' : 'ligne(s)'}.<br>` : ''}
         ${settings.customFooterNote ? `<div>${settings.customFooterNote}</div>` : ''}
         ${(settings.showValidityNote && settings.validityNote) ? `<div style="margin-top: 3px; font-weight: 600; color: #334155;">📌 ${settings.validityNote}</div>` : ''}
       </div>

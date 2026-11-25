@@ -1057,7 +1057,7 @@ export default function App() {
     <div style={{ padding: '14px 18px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', fontSize: '0.75rem', color: '#64748b' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
         <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
-        <strong style={{ color: '#cbd5e1' }}>PWA Mode Hors-Ligne</strong>
+        <strong style={{ color: '#cbd5e1' }}>Mode Hors-Ligne Sécurisé</strong>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
         <span>💾 Auto-Sauvegarde :</span>
@@ -1615,33 +1615,7 @@ export default function App() {
               </button>
             )}
 
-            {/* Bouton d'Installation PWA Google Chrome & Écran d'accueil */}
-            {!isAppInstalled && !isMobile && (
-              <button
-                type="button"
-                onClick={handleInstallPWA}
-                title="Installer DocPocket Cab sur votre écran d'accueil (Application PWA)"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 13px',
-                  borderRadius: '20px',
-                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                  border: '1.5px solid #38bdf8',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 10px rgba(2, 132, 199, 0.45)',
-                  userSelect: 'none',
-                  flexShrink: 0
-                }}
-              >
-                <span>📲</span>
-                <span>Installer</span>
-              </button>
-            )}
+
 
             {/* Témoin de Synchronisation Cloud Instantanée (Firebase PC <-> Mobile) & Sauvegarde */}
             <div

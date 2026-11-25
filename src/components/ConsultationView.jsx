@@ -19,6 +19,7 @@ import {
 } from '../services/clinicalSuggestionsService';
 import DeleteConsultationModal from './DeleteConsultationModal';
 import CertificateModal from './CertificateModal';
+import ExamPrescriptionModal from './ExamPrescriptionModal';
 
 export default function ConsultationView({ 
   initialPatient = null, 
@@ -42,6 +43,26 @@ export default function ConsultationView({
   const [consultationToDelete, setConsultationToDelete] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [showCertifModal, setShowCertifModal] = useState(false);
+  const [showExamModal, setShowExamModal] = useState(false);
+  const [examModalType, setExamModalType] = useState('biologie');
+
+  const handleOpenBioPrescription = () => {
+    if (!selectedPatient) {
+      alert("Veuillez sélectionner un patient avant de prescrire un bilan biologique.");
+      return;
+    }
+    setExamModalType('biologie');
+    setShowExamModal(true);
+  };
+
+  const handleOpenRadioPrescription = () => {
+    if (!selectedPatient) {
+      alert("Veuillez sélectionner un patient avant de prescrire des examens radiologiques.");
+      return;
+    }
+    setExamModalType('imagerie');
+    setShowExamModal(true);
+  };
 
   const handleRequestDeleteConsultation = (consult) => {
     setConsultationToDelete(consult);
@@ -1164,6 +1185,92 @@ export default function ConsultationView({
                       </button>
                     </div>
 
+                    {/* Carte Bilan Biologique */}
+                    <div style={{
+                      background: '#1e293b',
+                      padding: '14px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(5, 150, 105, 0.35)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '10px'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#34d399', fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>🧪</span> Bilan Biologique (Analyses)
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                          Prescrivez les analyses médicales (NFS, Glycémie, Bilan rénal, hépatique, profils types).
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenBioPrescription}
+                        disabled={saving}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: '6px',
+                          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                          border: 'none',
+                          color: '#fff',
+                          fontWeight: 600,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)'
+                        }}
+                      >
+                        <span>🧪</span> Prescrire Bilan Biologique
+                      </button>
+                    </div>
+
+                    {/* Carte Imagerie Médicale & Radiologie */}
+                    <div style={{
+                      background: '#1e293b',
+                      padding: '14px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(2, 132, 199, 0.35)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '10px'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#38bdf8', fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>🩻</span> Imagerie Médicale & Radiologie
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                          Prescrivez radiographies, échographies, scanners TDM, IRM et Doppler vasculaires.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenRadioPrescription}
+                        disabled={saving}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: '6px',
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          border: 'none',
+                          color: '#fff',
+                          fontWeight: 600,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                        }}
+                      >
+                        <span>🩻</span> Prescrire Imagerie Médicale
+                      </button>
+                    </div>
+
                     {/* Carte Quittance & Facture */}
                     <div style={{
                       background: '#1e293b',
@@ -1289,6 +1396,58 @@ export default function ConsultationView({
                       💊 Rédiger Ordonnance
                     </button>
                   )}
+
+                  {/* Bouton Prescrire Bilan Biologique */}
+                  <button
+                    type="button"
+                    onClick={handleOpenBioPrescription}
+                    disabled={saving}
+                    style={{
+                      flex: isMobile ? '1 1 100%' : 'none',
+                      padding: '12px 18px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      color: '#fff',
+                      fontWeight: 600,
+                      fontSize: '0.95rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)'
+                    }}
+                    title="Prescrire des examens biologiques / analyses de laboratoire"
+                  >
+                    🧪 Prescrire Biologie
+                  </button>
+
+                  {/* Bouton Prescrire Imagerie Médicale */}
+                  <button
+                    type="button"
+                    onClick={handleOpenRadioPrescription}
+                    disabled={saving}
+                    style={{
+                      flex: isMobile ? '1 1 100%' : 'none',
+                      padding: '12px 18px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#fff',
+                      fontWeight: 600,
+                      fontSize: '0.95rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
+                    }}
+                    title="Prescrire des examens d'imagerie médicale / radiologie"
+                  >
+                    🩻 Prescrire Imagerie
+                  </button>
 
                   {onOpenBilling && (
                     <button
@@ -1622,6 +1781,20 @@ export default function ConsultationView({
         patient={selectedPatient}
         consultation={formData}
         onClose={() => setShowCertifModal(false)}
+      />
+
+      {/* Modal de prescription d'examens biologiques et radiologiques */}
+      <ExamPrescriptionModal
+        isOpen={showExamModal}
+        initialType={examModalType}
+        patient={selectedPatient}
+        consultation={formData}
+        onClose={() => setShowExamModal(false)}
+        onPrescriptionSaved={() => {
+          if (selectedPatient?.id) {
+            loadPatientConsultations(selectedPatient.id);
+          }
+        }}
       />
     </div>
   );
