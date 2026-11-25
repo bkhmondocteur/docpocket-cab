@@ -36,6 +36,7 @@ import { getAllActiveCnamAlerts } from './services/cnamAlertService';
 import OutilsView from './components/OutilsView';
 import DirectoryView from './components/DirectoryView';
 import SettingsView from './components/SettingsView';
+import AboutUpdateModal from './components/AboutUpdateModal';
 import UnsettledConsultationModal from './components/UnsettledConsultationModal';
 import LicenseLockModal from './components/LicenseLockModal';
 import PinLockModal from './components/PinLockModal';
@@ -185,6 +186,7 @@ export default function App() {
   // Alertes réglementaires CNAM : délai de forclusion de 2 mois pour dépôt des bordereaux
   const [cnamAlerts, setCnamAlerts] = useState([]);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
 
   const refreshCnamAlerts = async () => {
     try {
@@ -1020,6 +1022,33 @@ export default function App() {
           <div style={{ fontSize: '0.7rem', color: '#64748b' }}>10 Thèmes, Sauvegardes & Cloud</div>
         </div>
       </button>
+
+      <button
+        onClick={() => {
+          setShowAboutModal(true);
+          if (onItemClick) onItemClick();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          width: '100%',
+          padding: '10px 14px',
+          borderRadius: '8px',
+          border: 'none',
+          background: 'rgba(56, 189, 248, 0.08)',
+          color: '#38bdf8',
+          fontWeight: 600,
+          cursor: 'pointer',
+          textAlign: 'left'
+        }}
+      >
+        <span style={{ fontSize: '1.2rem' }}>ℹ️</span>
+        <div>
+          <div>À propos & Mises à jour</div>
+          <div style={{ fontSize: '0.7rem', color: '#38bdf8' }}>Version 2.3.0 • Vérifier les màj</div>
+        </div>
+      </button>
     </>
   );
 
@@ -1035,6 +1064,28 @@ export default function App() {
         <strong style={{ color: autoBackupStatus.enabled ? '#4ade80' : '#f87171' }}>
           {autoBackupStatus.enabled ? 'Active (après modif)' : 'Désactivée'}
         </strong>
+      </div>
+      <div 
+        onClick={() => setShowAboutModal(true)}
+        title="Ouvrir À propos & Rechercher une mise à jour"
+        style={{
+          marginTop: '8px',
+          padding: '5px 8px',
+          borderRadius: '6px',
+          background: 'rgba(56, 189, 248, 0.1)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          color: '#38bdf8',
+          fontSize: '0.72rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          userSelect: 'none'
+        }}
+      >
+        <span>ℹ️ v2.3.0 • Mises à jour</span>
+        <span>🔄</span>
       </div>
     </div>
   );
@@ -1672,6 +1723,31 @@ export default function App() {
                   : '0 0 6px rgba(34, 197, 94, 0.8)'
               }}></span>
             </div>
+
+            {/* Bouton Rapide « À propos & Mises à jour » */}
+            <button
+              type="button"
+              onClick={() => setShowAboutModal(true)}
+              title="À propos de DocPocket Cab & Vérification des Mises à jour logicielles"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: isMobile ? '5px 8px' : '6px 12px',
+                borderRadius: '20px',
+                background: 'rgba(56, 189, 248, 0.1)',
+                border: '1.5px solid rgba(56, 189, 248, 0.3)',
+                color: '#38bdf8',
+                fontWeight: 700,
+                fontSize: isMobile ? '0.72rem' : '0.8rem',
+                cursor: 'pointer',
+                userSelect: 'none',
+                flexShrink: 0
+              }}
+            >
+              <span>ℹ️</span>
+              {!isMobile && <span>v2.3.0</span>}
+            </button>
           </div>
         </header>
 
@@ -3063,6 +3139,12 @@ export default function App() {
           patient={currentActivePatient || selectedPatient}
         />
       )}
+
+      {/* Modal À propos & Recherche de Mises à jour Logicielles */}
+      <AboutUpdateModal
+        isOpen={showAboutModal}
+        onClose={() => setShowAboutModal(false)}
+      />
     </div>
   );
 }

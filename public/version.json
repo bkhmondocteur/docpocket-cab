@@ -1,0 +1,13 @@
+{
+  "name": "DocPocket Cab",
+  "fullName": "DocPocket Cabinet Médical",
+  "version": "2.3.0",
+  "versionName": "2.3.0",
+  "versionCode": 6,
+  "releaseDate": "2026-11-25",
+  "author": "Dr. Hamed BEN KHALIFA",
+  "changelog": "• Version officielle 2.3.0 multiplateforme (Windows, Android & Web PWA).\n• Section « À propos & Mises à jour » avec vérification automatique et téléchargements directs.\n• Génération de l'installateur Windows (.exe) NSIS autonome.\n• Génération de l'application Android (.apk) autonome.\n• Éditeur avancé de mise en page des ordonnances et certificats avec variables dynamiques.\n• Infobulle d'alerte progressive pour échéance réglementaire des 2 mois CNAM.\n• Synchronisation discrète et automatique sans clignotement.",
+  "downloadApkUrl": "https://github.com/bkhmondocteur/docpocket-cab/releases/download/v2.3.0/DocPocket-Cab.apk",
+  "downloadExeUrl": "https://github.com/bkhmondocteur/docpocket-cab/releases/download/v2.3.0/DocPocket-Cab-Setup.exe",
+  "githubReleaseUrl": "https://github.com/bkhmondocteur/docpocket-cab/releases/tag/v2.3.0"
+}

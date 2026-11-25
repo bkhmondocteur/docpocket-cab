@@ -83,6 +83,8 @@ import {
   generatePrescriptionReport
 } from '../services/prescriptionReportGenerator';
 import BackupFolderSetupModal from './BackupFolderSetupModal';
+import { CURRENT_APP_INFO, checkForAppUpdates } from '../services/updateService';
+import appLogo from '../assets/logo.jpg';
 
 export default function SettingsView({ initialTab = 'backup', onDataRestored = () => {} }) {
   const [activeTab, setActiveTab] = useState(initialTab); // 'backup' | 'sync' | 'license' | 'practitioners' | 'themes'
@@ -103,6 +105,27 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
   // États pour les thèmes visuels (10 thèmes médicaux)
   const [activeThemeId, setActiveThemeId] = useState(() => getCurrentThemeId());
   const [themeSuccessMsg, setThemeSuccessMsg] = useState('');
+
+  // États pour À propos & Mises à jour
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updateCheckResult, setUpdateCheckResult] = useState(null);
+
+  const handleCheckUpdates = async () => {
+    setCheckingUpdates(true);
+    setUpdateCheckResult(null);
+    try {
+      const res = await checkForAppUpdates();
+      setUpdateCheckResult(res);
+    } catch (err) {
+      setUpdateCheckResult({
+        success: false,
+        hasUpdate: false,
+        message: "Erreur lors de la vérification : " + err.message
+      });
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
 
   // États pour la personnalisation des ordonnances & impression
   const [prescSettings, setPrescSettings] = useState(() => getPrescriptionSettings());
@@ -779,6 +802,25 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
             }}
           >
             <span>🎨</span> Thèmes Visuels (10)
+          </button>
+
+          <button
+            onClick={() => setActiveTab('about')}
+            style={{
+              padding: '9px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'about' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
+              color: activeTab === 'about' ? '#fff' : '#94a3b8',
+              fontWeight: activeTab === 'about' ? 700 : 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.85rem'
+            }}
+          >
+            <span>ℹ️</span> À propos & Mises à jour
           </button>
         </div>
 
@@ -3870,6 +3912,227 @@ export default function SettingsView({ initialTab = 'backup', onDataRestored = (
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* ONGLET 7 : À PROPOS & MISES À JOUR                             */}
+      {/* ============================================================== */}
+      {activeTab === 'about' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Bannière Présentation */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.2) 0%, rgba(15, 23, 42, 0.8) 100%)',
+            border: '1.5px solid rgba(56, 189, 248, 0.4)',
+            borderRadius: '16px',
+            padding: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '20px',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <img
+                src={appLogo}
+                alt="Logo DocPocket Cab"
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '16px',
+                  objectFit: 'cover',
+                  border: '2px solid rgba(56, 189, 248, 0.5)',
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.4)'
+                }}
+              />
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#f8fafc' }}>
+                  {CURRENT_APP_INFO.fullName}
+                </h2>
+                <div style={{ fontSize: '0.9rem', color: '#38bdf8', fontWeight: 600, marginTop: '4px' }}>
+                  Version {CURRENT_APP_INFO.version} (Édition Officielle) • Déployée le {CURRENT_APP_INFO.releaseDate}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+                  Système de gestion médicale intelligente, multiplateforme & autonome
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCheckUpdates}
+              disabled={checkingUpdates}
+              style={{
+                padding: '12px 24px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#fff',
+                border: 'none',
+                cursor: checkingUpdates ? 'wait' : 'pointer',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 15px rgba(2, 132, 199, 0.4)'
+              }}
+            >
+              <span>{checkingUpdates ? '⏳' : '🔄'}</span>
+              <span>{checkingUpdates ? 'Vérification en cours...' : 'Rechercher une mise à jour'}</span>
+            </button>
+          </div>
+
+          {/* Résultat Vérification de Mise à jour */}
+          {updateCheckResult && (
+            <div style={{
+              background: updateCheckResult.hasUpdate ? 'rgba(234, 179, 8, 0.15)' : (updateCheckResult.success ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)'),
+              border: `1.5px solid ${updateCheckResult.hasUpdate ? '#eab308' : (updateCheckResult.success ? '#22c55e' : '#ef4444')}`,
+              borderRadius: '12px',
+              padding: '18px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: updateCheckResult.hasUpdate ? '#facc15' : (updateCheckResult.success ? '#4ade80' : '#f87171') }}>
+                {updateCheckResult.hasUpdate
+                  ? `🚀 Nouvelle version disponible : ${updateCheckResult.latestVersion} (publiée le ${updateCheckResult.releaseDate})`
+                  : (updateCheckResult.success
+                  ? `✓ Votre application DocPocket Cab est à jour avec la version officielle la plus récente (v${updateCheckResult.currentVersion}) !`
+                  : `⚠️ ${updateCheckResult.message}`)}
+              </div>
+
+              {updateCheckResult.hasUpdate && (
+                <div>
+                  <div style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 700, marginBottom: '6px' }}>
+                    Notes de publication et nouveautés :
+                  </div>
+                  <div style={{
+                    background: 'rgba(0,0,0,0.3)',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    color: '#94a3b8',
+                    fontSize: '0.82rem',
+                    whiteSpace: 'pre-line'
+                  }}>
+                    {updateCheckResult.changelog}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Grille : Praticien & Plateformes & Téléchargements */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+            {/* Praticien Titulaire */}
+            <div style={{
+              background: '#1e293b',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              padding: '18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              fontSize: '0.88rem'
+            }}>
+              <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#f8fafc', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
+                🩺 Praticien & Cabinet
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>Médecin :</span>
+                <strong style={{ color: '#f8fafc' }}>{CURRENT_APP_INFO.author}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>Spécialité :</span>
+                <span style={{ color: '#cbd5e1' }}>{CURRENT_APP_INFO.specialite}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>N° Ordre :</span>
+                <span style={{ color: '#38bdf8', fontWeight: 700 }}>{CURRENT_APP_INFO.numOrdre}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>Code CNAM :</span>
+                <span style={{ color: '#4ade80', fontWeight: 700 }}>{CURRENT_APP_INFO.codeConventionnelCnam}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>Lieu :</span>
+                <span style={{ color: '#cbd5e1', textAlign: 'right' }}>{CURRENT_APP_INFO.cabinet}</span>
+              </div>
+            </div>
+
+            {/* Téléchargements & Installateurs */}
+            <div style={{
+              background: '#1e293b',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              padding: '18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#f8fafc', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
+                📦 Téléchargements Directs
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                Installez l'application directement sur vos différents appareils :
+              </div>
+
+              <a
+                href={CURRENT_APP_INFO.downloadExeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  border: '1.5px solid rgba(56, 189, 248, 0.35)',
+                  color: '#38bdf8',
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>💻</span>
+                  <div>
+                    <div>Windows Installer (.exe)</div>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 400 }}>Installateur PC autonome</div>
+                  </div>
+                </div>
+                <span>⬇️</span>
+              </a>
+
+              <a
+                href={CURRENT_APP_INFO.downloadApkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'rgba(34, 197, 94, 0.12)',
+                  border: '1.5px solid rgba(34, 197, 94, 0.35)',
+                  color: '#4ade80',
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>📲</span>
+                  <div>
+                    <div>Android Package (.apk)</div>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 400 }}>Application mobile & tablette</div>
+                  </div>
+                </div>
+                <span>⬇️</span>
+              </a>
+            </div>
           </div>
         </div>
       )}

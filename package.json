@@ -4,18 +4,20 @@
   "description": "Application médicale DocPocket Cab",
   "author": "DocPocket Cab",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.3.0",
   "type": "module",
   "main": "electron/main.js",
   "build": {
     "appId": "com.docpocket.cab",
     "productName": "DocPocket Cab",
+    "electronVersion": "31.2.1",
+    "npmRebuild": false,
     "directories": {
       "output": "dist-electron"
     },
     "win": {
       "target": "nsis",
-      "artifactName": "DocPocket Cab Setup ${version}.${ext}"
+      "artifactName": "DocPocket-Cab-Setup.${ext}"
     },
     "nsis": {
       "oneClick": true,
