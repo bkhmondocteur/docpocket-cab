@@ -133,8 +133,13 @@ export default function CertificateModal({
     }
   };
 
-  // Impression native directe haute définition
-  const handlePrint = () => {
+  // Impression native directe haute définition avec enregistrement automatique
+  const handlePrint = async () => {
+    try {
+      await handleSave();
+    } catch (e) {
+      console.warn("Auto save certificate before print:", e);
+    }
     const printWindow = window.open('', '_blank', 'width=800,height=900');
     if (!printWindow) {
       alert("Veuillez autoriser les fenêtres pop-up pour imprimer le certificat.");

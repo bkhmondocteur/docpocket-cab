@@ -1084,7 +1084,7 @@ export default function App() {
           userSelect: 'none'
         }}
       >
-        <span>ℹ️ v2.3.0 • Mises à jour</span>
+        <span>ℹ️ v1.0.0 • Mises à jour</span>
         <span>🔄</span>
       </div>
     </div>
@@ -1698,6 +1698,31 @@ export default function App() {
               }}></span>
             </div>
 
+            {/* Bouton Rapide « Éditeur de Modèles » */}
+            <button
+              type="button"
+              onClick={() => setShowTemplateEditor(true)}
+              title="Éditeur de modèles d'ordonnances, certificats et mise en page"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: isMobile ? '5px 8px' : '6px 12px',
+                borderRadius: '20px',
+                background: 'rgba(168, 85, 247, 0.15)',
+                border: '1.5px solid rgba(168, 85, 247, 0.35)',
+                color: '#d8b4fe',
+                fontWeight: 700,
+                fontSize: isMobile ? '0.72rem' : '0.8rem',
+                cursor: 'pointer',
+                userSelect: 'none',
+                flexShrink: 0
+              }}
+            >
+              <span>📐</span>
+              {!isMobile && <span>Modèles</span>}
+            </button>
+
             {/* Bouton Rapide « À propos & Mises à jour » */}
             <button
               type="button"
@@ -1720,7 +1745,7 @@ export default function App() {
               }}
             >
               <span>ℹ️</span>
-              {!isMobile && <span>v2.3.0</span>}
+              {!isMobile && <span>v1.0.0</span>}
             </button>
           </div>
         </header>

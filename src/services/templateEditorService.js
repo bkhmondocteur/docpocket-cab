@@ -339,6 +339,44 @@ Renseignements cliniques :
 {diagnostic}
 
 Merci de bien vouloir communiquer les clichés et le compte-rendu radiologique.`
+  },
+
+  // 12. Modèle Rapport de Consultation Médicale
+  {
+    id: 'report_consultation_standard',
+    type: 'report',
+    category: 'rapport',
+    title: 'Rapport Médical de Consultation (Standard)',
+    description: 'Compte-rendu médical officiel avec coordonnées, motif, examen clinique et conclusion',
+    paperFormat: 'A4',
+    orientation: 'portrait',
+    fontSize: '11pt',
+    margins: { top: 35, bottom: 25, left: 20, right: 20 },
+    showHeader: true,
+    showStamp: true,
+    showSignature: true,
+    body: `RAPPORT MÉDICAL DE CONSULTATION
+
+Patient(e) : {nom_complet}
+Date de naissance : {date_naissance} ({age}) | CIN : {cin}
+Consultation réalisée le : {date_du_jour}
+
+MOTIF DE CONSULTATION :
+{motif}
+
+DONNÉES BIOMÉTRIQUES & CONSTANTES :
+{constantes}
+
+OBSERVATIONS CLINIQUES & DIAGNOSTIC :
+Examen clinique systématique réalisé ce jour.
+Diagnostic retenu : {diagnostic}
+
+CONDUITE THÉRAPEUTIQUE & PRESCRIPTION :
+{liste_medicaments}
+
+Repos médical justifié : {nombre_jours_repos} ({jours_repos_lettres}) jours.
+
+Fait à {ville}, le {date_du_jour}.`
   }
 ];
 

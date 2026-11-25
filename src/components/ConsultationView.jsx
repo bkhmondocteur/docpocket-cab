@@ -20,6 +20,7 @@ import {
 import DeleteConsultationModal from './DeleteConsultationModal';
 import CertificateModal from './CertificateModal';
 import ExamPrescriptionModal from './ExamPrescriptionModal';
+import TemplateLayoutEditorModal from './TemplateLayoutEditorModal';
 
 export default function ConsultationView({ 
   initialPatient = null, 
@@ -44,6 +45,7 @@ export default function ConsultationView({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [showCertifModal, setShowCertifModal] = useState(false);
   const [showExamModal, setShowExamModal] = useState(false);
+  const [showTemplateEditorModal, setShowTemplateEditorModal] = useState(false);
   const [examModalType, setExamModalType] = useState('biologie');
 
   const handleOpenBioPrescription = () => {
@@ -1117,509 +1119,399 @@ export default function ConsultationView({
                   </div>
                 </div>
 
-                {/* MODULES CLINIQUES DIRECTEMENT RATTACHÉS À LA CONSULTATION EN COURS */}
+
+
+                {/* ============================================================== */}
+                {/* SECTION BASSE : ARRÊT DE TRAVAIL & ACTIONS CLINIQUES / GESTION */}
+                {/* ============================================================== */}
+
+                {/* 1. Bloc Arrêt de travail / Repos médical */}
                 <div style={{
-                  background: 'rgba(15, 23, 42, 0.75)',
-                  padding: '16px 18px',
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                   borderRadius: '10px',
-                  border: '1px solid rgba(56, 189, 248, 0.25)',
-                  marginTop: '10px',
+                  padding: '12px 16px',
+                  marginTop: '12px',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px'
+                  flexDirection: isMobile ? 'column' : 'row',
+                  alignItems: isMobile ? 'stretch' : 'center',
+                  justifyContent: 'space-between',
+                  gap: '14px'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                    <strong style={{ color: '#38bdf8', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>📋</span> Prescription & Quittance rattachées à cette consultation
-                    </strong>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                      {formData.diagnostic ? (
-                        <span>Diagnostic actif : <strong style={{ color: '#fff' }}>{formData.diagnostic}</strong></span>
-                      ) : (
-                        <span>Saisissez le diagnostic pour pré-remplir l'ordonnance</span>
-                      )}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-                    {/* Carte Ordonnance */}
-                    <div style={{
-                      background: '#1e293b',
-                      padding: '14px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(2, 132, 199, 0.35)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '10px'
-                    }}>
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#38bdf8', fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>💊</span> Ordonnance Médicale (Base Médocs)
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                          Délivrez le traitement adapté au diagnostic en cours avec posologie, DCI et APCI.
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleOpenPrescriptionWithSave}
-                        disabled={saving}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.2rem' }}>🛌</span>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#e2e8f0' }}>Arrêt de travail (Repos) :</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.reposJours}
+                        onChange={(e) => setFormData({ ...formData, reposJours: e.target.value })}
                         style={{
-                          padding: '10px 14px',
+                          width: '75px',
+                          padding: '7px 10px',
+                          background: '#1e293b',
+                          border: '1px solid #334155',
                           borderRadius: '6px',
-                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                          border: 'none',
-                          color: '#fff',
-                          fontWeight: 600,
-                          fontSize: '0.88rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                          color: '#38bdf8',
+                          fontWeight: 700,
+                          textAlign: 'center',
+                          fontSize: '0.95rem'
                         }}
-                      >
-                        <span>💊</span> Rédiger l'Ordonnance
-                      </button>
+                      />
+                      <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>jour(s)</span>
                     </div>
 
-                    {/* Carte Bilan Biologique */}
-                    <div style={{
-                      background: '#1e293b',
-                      padding: '14px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(5, 150, 105, 0.35)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '10px'
-                    }}>
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#34d399', fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>🧪</span> Bilan Biologique (Analyses)
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                          Prescrivez les analyses médicales (NFS, Glycémie, Bilan rénal, hépatique, profils types).
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleOpenBioPrescription}
-                        disabled={saving}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>à compter du :</span>
+                      <input
+                        type="date"
+                        value={formData.reposDebut}
+                        onChange={(e) => setFormData({ ...formData, reposDebut: e.target.value })}
                         style={{
-                          padding: '10px 14px',
+                          padding: '7px 10px',
+                          background: '#1e293b',
+                          border: '1px solid #334155',
                           borderRadius: '6px',
-                          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                          border: 'none',
                           color: '#fff',
-                          fontWeight: 600,
-                          fontSize: '0.88rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)'
+                          fontSize: '0.85rem'
                         }}
-                      >
-                        <span>🧪</span> Prescrire Bilan Biologique
-                      </button>
-                    </div>
-
-                    {/* Carte Imagerie Médicale & Radiologie */}
-                    <div style={{
-                      background: '#1e293b',
-                      padding: '14px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(2, 132, 199, 0.35)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '10px'
-                    }}>
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#38bdf8', fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>🩻</span> Imagerie Médicale & Radiologie
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                          Prescrivez radiographies, échographies, scanners TDM, IRM et Doppler vasculaires.
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleOpenRadioPrescription}
-                        disabled={saving}
-                        style={{
-                          padding: '10px 14px',
-                          borderRadius: '6px',
-                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                          border: 'none',
-                          color: '#fff',
-                          fontWeight: 600,
-                          fontSize: '0.88rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
-                        }}
-                      >
-                        <span>🩻</span> Prescrire Imagerie Médicale
-                      </button>
-                    </div>
-
-                    {/* Carte Quittance & Facture */}
-                    <div style={{
-                      background: '#1e293b',
-                      padding: '14px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(124, 58, 237, 0.35)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '10px'
-                    }}>
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#c084fc', fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>💳</span> Quittance d'Honoraires & Facture (CNAM)
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                          Enregistrez le règlement de la consultation, la part CNAM et imprimez la quittance.
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleOpenBillingWithSave}
-                        disabled={saving}
-                        style={{
-                          padding: '10px 14px',
-                          borderRadius: '6px',
-                          background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
-                          border: 'none',
-                          color: '#fff',
-                          fontWeight: 600,
-                          fontSize: '0.88rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)'
-                        }}
-                      >
-                        <span>💳</span> Établir la Quittance
-                      </button>
+                      />
                     </div>
                   </div>
-                </div>
-
-                {/* Arrêt de travail / Repos */}
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px', marginTop: '6px', padding: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
-                      Arrêt de travail (Jours de repos)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.reposJours}
-                      onChange={(e) => setFormData({ ...formData, reposJours: e.target.value })}
-                      style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
-                      Date de début du repos
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.reposDebut}
-                      onChange={(e) => setFormData({ ...formData, reposDebut: e.target.value })}
-                      style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }}
-                    />
-                  </div>
-
-                  {Number(formData.reposJours) > 0 && (
-                    <div style={{ gridColumn: isMobile ? '1' : '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-                      <button
-                        type="button"
-                        onClick={() => generateMedicalRestCertificate(selectedPatient, formData)}
-                        style={{
-                          padding: '9px 16px',
-                          borderRadius: '6px',
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          color: '#fff',
-                          fontWeight: 600,
-                          fontSize: '0.88rem',
-                          border: 'none',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
-                        }}
-                        title="Imprimer le certificat médical officiel de repos (sans diagnostic, secret médical)"
-                      >
-                        🛌 Imprimer Certificat de Repos ({formData.reposJours} j)
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end', alignItems: 'center', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
-                  {onOpenPrescription && (
-                    <button
-                      type="button"
-                      onClick={handleOpenPrescriptionWithSave}
-                      disabled={saving}
-                      style={{
-                        flex: isMobile ? '1 1 100%' : 'none',
-                        padding: '12px 20px',
-                        borderRadius: '8px',
-                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                        color: '#fff',
-                        fontWeight: 600,
-                        fontSize: '0.95rem',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
-                      }}
-                      title="Rédiger une ordonnance pour ce patient (Base Médocs)"
-                    >
-                      💊 Rédiger Ordonnance
-                    </button>
-                  )}
-
-                  {/* Bouton Prescrire Bilan Biologique */}
-                  <button
-                    type="button"
-                    onClick={handleOpenBioPrescription}
-                    disabled={saving}
-                    style={{
-                      flex: isMobile ? '1 1 100%' : 'none',
-                      padding: '12px 18px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                      color: '#fff',
-                      fontWeight: 600,
-                      fontSize: '0.95rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)'
-                    }}
-                    title="Prescrire des examens biologiques / analyses de laboratoire"
-                  >
-                    🧪 Prescrire Biologie
-                  </button>
-
-                  {/* Bouton Prescrire Imagerie Médicale */}
-                  <button
-                    type="button"
-                    onClick={handleOpenRadioPrescription}
-                    disabled={saving}
-                    style={{
-                      flex: isMobile ? '1 1 100%' : 'none',
-                      padding: '12px 18px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                      color: '#fff',
-                      fontWeight: 600,
-                      fontSize: '0.95rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)'
-                    }}
-                    title="Prescrire des examens d'imagerie médicale / radiologie"
-                  >
-                    🩻 Prescrire Imagerie
-                  </button>
-
-                  {onOpenBilling && (
-                    <button
-                      type="button"
-                      onClick={handleOpenBillingWithSave}
-                      disabled={saving}
-                      style={{
-                        flex: isMobile ? '1 1 100%' : 'none',
-                        padding: '12px 20px',
-                        borderRadius: '8px',
-                        background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
-                        color: '#fff',
-                        fontWeight: 600,
-                        fontSize: '0.95rem',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)'
-                      }}
-                      title="Établir les honoraires ou la quittance CNAM pour cette consultation"
-                    >
-                      💳 Facturer / Quittance
-                    </button>
-                  )}
-
-                  {onOpenAppointment && (
-                    <button
-                      type="button"
-                      onClick={handleOpenAppointmentWithSave}
-                      disabled={saving}
-                      style={{
-                        flex: isMobile ? '1 1 100%' : 'none',
-                        padding: '12px 20px',
-                        borderRadius: '8px',
-                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                        color: '#fff',
-                        fontWeight: 600,
-                        fontSize: '0.95rem',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
-                      }}
-                      title="Planifier un rendez-vous pour ce patient"
-                    >
-                      📅 Créer un RDV
-                    </button>
-                  )}
-
-                  {formData.id && (
-                    <button
-                      type="button"
-                      onClick={() => handleRequestDeleteConsultation(formData)}
-                      style={{
-                        flex: isMobile ? '1 1 100%' : 'none',
-                        padding: '12px 18px',
-                        borderRadius: '8px',
-                        background: 'rgba(239, 68, 68, 0.15)',
-                        color: '#f87171',
-                        fontWeight: 600,
-                        fontSize: '0.9rem',
-                        border: '1px solid rgba(239, 68, 68, 0.35)',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                      title="Supprimer définitivement cette consultation avec confirmation par code PIN"
-                    >
-                      🗑️ Supprimer
-                    </button>
-                  )}
 
                   {Number(formData.reposJours) > 0 && (
                     <button
                       type="button"
                       onClick={() => generateMedicalRestCertificate(selectedPatient, formData)}
                       style={{
-                        flex: isMobile ? '1 1 100%' : 'none',
-                        padding: '12px 20px',
+                        padding: '8px 16px',
                         borderRadius: '8px',
                         background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                         color: '#fff',
                         fontWeight: 600,
-                        fontSize: '0.95rem',
+                        fontSize: '0.85rem',
                         border: 'none',
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '8px',
-                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
+                        whiteSpace: 'nowrap'
                       }}
-                      title="Imprimer le certificat médical officiel de repos (sans mention du diagnostic)"
+                      title="Imprimer directement le certificat médical de repos"
                     >
-                      🛌 Certificat de Repos
+                      🖨️ Certificat de Repos ({formData.reposJours} j)
                     </button>
                   )}
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={() => generateConsultationReport(selectedPatient, formData)}
-                    style={{
-                      flex: isMobile ? '1 1 100%' : 'none',
-                      padding: '12px 22px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                      color: '#fff',
-                      fontWeight: 600,
-                      fontSize: '0.95rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)'
-                    }}
-                    title="Imprimer, télécharger en PDF ou envoyer par email"
-                  >
-                    📄 Résumé de la Consultation (PDF)
-                  </button>
+                {/* 2. Barre d'outils Médicale et Clinique (Prescriptions, Examens & Certificats) */}
+                <div style={{
+                  background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%)',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  borderRadius: '12px',
+                  padding: '16px 18px',
+                  marginTop: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+                }}>
+                  {/* Titre & Sous-titre du panneau */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.1rem' }}>🩺</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#38bdf8', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                        Prescriptions Médicales & Actes Cliniques
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                      {formData.diagnostic ? (
+                        <span>Diagnostic actif : <strong style={{ color: '#38bdf8' }}>{formData.diagnostic}</strong></span>
+                      ) : (
+                        <span>Sélectionnez ou complétez les actes rattachés</span>
+                      )}
+                    </span>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowCertifModal(true)}
-                    style={{
-                      flex: isMobile ? '1 1 100%' : 'none',
-                      padding: '12px 20px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                      color: '#fff',
-                      fontWeight: 600,
-                      fontSize: '0.95rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)'
-                    }}
-                    title="Rédiger un certificat de repos, aptitude physique, CMI, accompagnement, présence..."
-                  >
-                    📜 Certificats & Attestations
-                  </button>
+                  {/* Grille des 5 boutons d'actions médicales (hauteurs égales, alignés proprement) */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(170px, 1fr))',
+                    gap: '10px'
+                  }}>
+                    {/* 1. Ordonnance Médicale */}
+                    <button
+                      type="button"
+                      onClick={handleOpenPrescriptionWithSave}
+                      disabled={saving}
+                      style={{
+                        padding: '11px 14px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 3px 10px rgba(2, 132, 199, 0.35)'
+                      }}
+                      title="Rédiger une ordonnance médicamenteuse (Base Médocs)"
+                    >
+                      <span>💊</span>
+                      <span>Ordonnance</span>
+                    </button>
 
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    style={{
-                      flex: isMobile ? '1 1 100%' : 'none',
-                      padding: '12px 28px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                      color: '#fff',
-                      fontWeight: 600,
-                      fontSize: '0.95rem',
-                      border: 'none',
-                      cursor: saving ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)'
-                    }}
-                  >
-                    {saving ? 'Enregistrement en cours...' : '💾 Valider la Consultation'}
-                  </button>
+                    {/* 2. Bilan Biologique */}
+                    <button
+                      type="button"
+                      onClick={handleOpenBioPrescription}
+                      disabled={saving}
+                      style={{
+                        padding: '11px 14px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        border: '1px solid rgba(52, 211, 153, 0.3)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 3px 10px rgba(5, 150, 105, 0.35)'
+                      }}
+                      title="Prescrire des analyses biologiques avec cases à cocher et recherche"
+                    >
+                      <span>🧪</span>
+                      <span>Bilan Biologique</span>
+                    </button>
+
+                    {/* 3. Imagerie Médicale */}
+                    <button
+                      type="button"
+                      onClick={handleOpenRadioPrescription}
+                      disabled={saving}
+                      style={{
+                        padding: '11px 14px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        border: '1px solid rgba(96, 165, 250, 0.3)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 3px 10px rgba(37, 99, 235, 0.35)'
+                      }}
+                      title="Prescrire radios, échographies, scanners et IRM"
+                    >
+                      <span>🩻</span>
+                      <span>Imagerie Médicale</span>
+                    </button>
+
+                    {/* 4. Certificats & Attestations */}
+                    <button
+                      type="button"
+                      onClick={() => setShowCertifModal(true)}
+                      style={{
+                        padding: '11px 14px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        border: '1px solid rgba(251, 191, 36, 0.3)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 3px 10px rgba(217, 119, 6, 0.35)'
+                      }}
+                      title="Rédiger un certificat médical (repos, aptitude, présence, etc.)"
+                    >
+                      <span>📜</span>
+                      <span>Certificats</span>
+                    </button>
+
+                    {/* 5. Éditeur de Modèles & Mise en page */}
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplateEditorModal(true)}
+                      style={{
+                        padding: '11px 14px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        border: '1px solid rgba(192, 132, 252, 0.3)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 3px 10px rgba(124, 58, 237, 0.35)'
+                      }}
+                      title="Ouvrir l'éditeur de modèles d'ordonnances, certificats, rapports et mise en page"
+                    >
+                      <span>📐</span>
+                      <span>Éditeur de Modèles</span>
+                    </button>
+                  </div>
+
+                  {/* Ligne 2 : Gestion Administrative, Rendez-vous & Clôture */}
+                  <div style={{
+                    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                    paddingTop: '12px',
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    flexWrap: 'wrap'
+                  }}>
+                    {/* Groupe gauche : Actions administratives secondaires */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: isMobile ? '1 1 100%' : 'none' }}>
+                      {onOpenBilling && (
+                        <button
+                          type="button"
+                          onClick={handleOpenBillingWithSave}
+                          disabled={saving}
+                          style={{
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            background: 'rgba(124, 58, 237, 0.18)',
+                            border: '1px solid rgba(124, 58, 237, 0.45)',
+                            color: '#c084fc',
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          title="Établir les honoraires ou la quittance CNAM"
+                        >
+                          <span>💳</span>
+                          <span>Facturer / Quittance</span>
+                        </button>
+                      )}
+
+                      {onOpenAppointment && (
+                        <button
+                          type="button"
+                          onClick={handleOpenAppointmentWithSave}
+                          disabled={saving}
+                          style={{
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            background: 'rgba(245, 158, 11, 0.18)',
+                            border: '1px solid rgba(245, 158, 11, 0.45)',
+                            color: '#fbbf24',
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          title="Planifier le prochain rendez-vous de ce patient"
+                        >
+                          <span>📅</span>
+                          <span>Créer un RDV</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => generateConsultationReport(selectedPatient, formData)}
+                        style={{
+                          padding: '10px 16px',
+                          borderRadius: '8px',
+                          background: 'rgba(56, 189, 248, 0.15)',
+                          border: '1px solid rgba(56, 189, 248, 0.4)',
+                          color: '#38bdf8',
+                          fontWeight: 600,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                        title="Imprimer ou exporter le résumé complet de consultation en PDF"
+                      >
+                        <span>📄</span>
+                        <span>Résumé PDF</span>
+                      </button>
+
+                      {formData.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleRequestDeleteConsultation(formData)}
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#f87171',
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          title="Supprimer cette consultation (sécurisé par code PIN)"
+                        >
+                          <span>🗑️</span>
+                          <span>Supprimer</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Groupe droite : Bouton principal de validation de consultation */}
+                    <div style={{ flex: isMobile ? '1 1 100%' : 'none', marginLeft: isMobile ? 0 : 'auto' }}>
+                      <button
+                        type="submit"
+                        disabled={saving}
+                        style={{
+                          width: isMobile ? '100%' : 'auto',
+                          minWidth: '220px',
+                          padding: '12px 28px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: '0.96rem',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          cursor: saving ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 4px 16px rgba(2, 132, 199, 0.45)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          letterSpacing: '0.3px'
+                        }}
+                      >
+                        <span>💾</span>
+                        <span>{saving ? 'Enregistrement en cours...' : 'Valider la Consultation'}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1796,6 +1688,17 @@ export default function ConsultationView({
           }
         }}
       />
+
+      {/* Modal d'édition des modèles et de mise en page */}
+      {showTemplateEditorModal && (
+        <TemplateLayoutEditorModal
+          isOpen={showTemplateEditorModal}
+          initialType="certificate"
+          patient={selectedPatient}
+          consultation={formData}
+          onClose={() => setShowTemplateEditorModal(false)}
+        />
+      )}
     </div>
   );
 }

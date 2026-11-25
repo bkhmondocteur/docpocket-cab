@@ -65,16 +65,27 @@ function getScopedKey(suffix = 'settings') {
  */
 export function getPrescriptionSettings() {
   try {
-    const raw = localStorage.getItem(getScopedKey('settings'));
     let parsed = {};
-    if (raw) {
-      try { parsed = JSON.parse(raw); } catch {}
+    const scopedRaw = localStorage.getItem(getScopedKey('settings'));
+    const globalRaw = localStorage.getItem('docpocket_presc_settings_global');
+    
+    if (scopedRaw) {
+      try { parsed = JSON.parse(scopedRaw); } catch {}
+    } else if (globalRaw) {
+      try { parsed = JSON.parse(globalRaw); } catch {}
     }
+
+    // Récupération prioritaire des choix explicites du médecin (taille de papier et format par défaut)
+    const explicitPaperSize = localStorage.getItem('docpocket_active_print_paper_size');
+    const explicitDefaultFormat = localStorage.getItem('docpocket_default_print_format');
+
     // Charge également l'image modèle si sauvegardée séparément
-    const templateImg = localStorage.getItem(getScopedKey('template_img'));
+    const templateImg = localStorage.getItem(getScopedKey('template_img')) || localStorage.getItem('docpocket_presc_template_img_global');
     return {
       ...DEFAULT_PRESCRIPTION_SETTINGS,
       ...parsed,
+      ...(explicitPaperSize ? { pageSize: explicitPaperSize } : {}),
+      ...(explicitDefaultFormat ? { defaultFormat: explicitDefaultFormat } : {}),
       templateImage: templateImg || parsed.templateImage || null
     };
   } catch (e) {
@@ -84,7 +95,7 @@ export function getPrescriptionSettings() {
 }
 
 /**
- * Enregistre les nouveaux paramètres d'ordonnance
+ * Enregistre les nouveaux paramètres d'ordonnance de manière persistante
  */
 export function savePrescriptionSettings(settings) {
   try {
@@ -92,16 +103,27 @@ export function savePrescriptionSettings(settings) {
     const { templateImage, ...settingsWithoutImage } = settings;
     const updated = { ...current, ...settingsWithoutImage };
 
-    // Sauvegarde les réglages généraux
-    localStorage.setItem(getScopedKey('settings'), JSON.stringify(updated));
+    const jsonStr = JSON.stringify(updated);
+    // Sauvegarde cloisonnée et globale pour garantir la persistance quoi qu'il arrive
+    localStorage.setItem(getScopedKey('settings'), jsonStr);
+    localStorage.setItem('docpocket_presc_settings_global', jsonStr);
+
+    if (updated.pageSize) {
+      localStorage.setItem('docpocket_active_print_paper_size', updated.pageSize);
+    }
+    if (updated.defaultFormat) {
+      localStorage.setItem('docpocket_default_print_format', updated.defaultFormat);
+    }
 
     // Sauvegarde l'image modèle scannée séparément
     if (templateImage !== undefined) {
       if (templateImage) {
         localStorage.setItem(getScopedKey('template_img'), templateImage);
+        localStorage.setItem('docpocket_presc_template_img_global', templateImage);
         updated.templateImage = templateImage;
       } else {
         localStorage.removeItem(getScopedKey('template_img'));
+        localStorage.removeItem('docpocket_presc_template_img_global');
         updated.templateImage = null;
       }
     }

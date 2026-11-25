@@ -12,6 +12,7 @@ import {
   deleteCustomTemplate,
   renderTemplateWithVariables
 } from '../services/templateEditorService';
+import { savePrescriptionSettings } from '../services/prescriptionSettingsService';
 
 export default function TemplateLayoutEditorModal({
   isOpen,
@@ -81,11 +82,12 @@ export default function TemplateLayoutEditorModal({
 
   const handleNewTemplate = () => {
     const isCert = docType === 'certificate';
+    const isReport = docType === 'report';
     setSelectedTemplateId(`custom_${Date.now()}`);
-    setTitle(isCert ? 'Nouveau Certificat Personnalisé' : 'Nouvelle Ordonnance Personnalisée');
+    setTitle(isCert ? 'Nouveau Certificat Personnalisé' : (isReport ? 'Nouveau Rapport Médical' : 'Nouvelle Ordonnance Personnalisée'));
     setDescription('Modèle rédigé sur mesure avec variables dynamiques');
-    setCategory(isCert ? 'travail' : 'ordonnance');
-    setPaperFormat('A5');
+    setCategory(isCert ? 'travail' : (isReport ? 'rapport' : 'ordonnance'));
+    setPaperFormat(isReport ? 'A4' : 'A5');
     setFontSize('11pt');
     setTextAlign('left');
     setMargins({ top: 35, bottom: 25, left: 20, right: 20 });
@@ -95,6 +97,8 @@ export default function TemplateLayoutEditorModal({
     setBodyText(
       isCert
         ? `Je soussigné, {nom_medecin}, certifie avoir examiné ce jour :\n\n{nom_complet}, né(e) le {date_naissance} ({age}), titulaire de la CIN n° {cin}.\n\n[Saisissez ici le texte de votre certificat]\n\nFait à {ville}, le {date_du_jour}.`
+        : isReport
+        ? `RAPPORT MÉDICAL DE CONSULTATION\n\nPatient(e) : {nom_complet}\nDate de naissance : {date_naissance} ({age}) | CIN : {cin}\nConsultation du : {date_du_jour}\n\nMOTIF DE CONSULTATION :\n{motif}\n\nDONNÉES BIOMÉTRIQUES & CONSTANTES :\n{constantes}\n\nOBSERVATIONS CLINIQUES & DIAGNOSTIC :\nExamen clinique systématique réalisé ce jour.\nDiagnostic : {diagnostic}\n\nCONDUITE THÉRAPEUTIQUE & PRESCRIPTION :\n{liste_medicaments}\n\nRepos médical justifié : {nombre_jours_repos} ({jours_repos_lettres}) jours.\n\nFait à {ville}, le {date_du_jour}.`
         : `Patient(e) : {nom_complet}\nÂge : {age} | Date : {date_du_jour}\n\nPRESCRIPTION MÉDICALE :\n\n{liste_medicaments}\n\nOrdonnance valable 3 mois.`
     );
     setSaveSuccessMsg('');
@@ -143,10 +147,25 @@ export default function TemplateLayoutEditorModal({
     };
 
     saveCustomTemplate(toSave);
+
+    // Mettre à jour et pérenniser le format d'impression global (A5 / A4 et marges)
+    try {
+      savePrescriptionSettings({
+        pageSize: paperFormat,
+        headerTopMargin: margins.top,
+        sideMargin: margins.left,
+        bottomMargin: margins.bottom
+      });
+      localStorage.setItem('docpocket_active_print_paper_size', paperFormat);
+      localStorage.setItem(`docpocket_default_template_${docType}`, toSave.id);
+    } catch (e) {
+      console.warn("Erreur synchronisation réglages impression:", e);
+    }
+
     const updatedList = getAllTemplates(docType);
     setTemplates(updatedList);
     setSelectedTemplateId(toSave.id);
-    setSaveSuccessMsg(`✓ Modèle « ${title} » enregistré avec succès !`);
+    setSaveSuccessMsg(`✓ Modèle « ${title} » et format (${paperFormat}) enregistrés définitivement !`);
     setTimeout(() => setSaveSuccessMsg(''), 4000);
   };
 
@@ -374,7 +393,7 @@ export default function TemplateLayoutEditorModal({
       bottom: 0,
       background: 'rgba(2, 6, 23, 0.88)',
       backdropFilter: 'blur(10px)',
-      zIndex: 99999,
+      zIndex: 100000000,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -483,7 +502,7 @@ export default function TemplateLayoutEditorModal({
           flexWrap: 'wrap',
           gap: '12px'
         }}>
-          {/* Bascule Type : Certificats vs Ordonnances */}
+          {/* Bascule Type : Certificats vs Ordonnances vs Rapports */}
           <div style={{ display: 'flex', gap: '6px', background: '#0f172a', padding: '3px', borderRadius: '8px', border: '1px solid #334155' }}>
             <button
               onClick={() => setDocType('certificate')}
@@ -514,6 +533,21 @@ export default function TemplateLayoutEditorModal({
               }}
             >
               💊 Ordonnances Médicales
+            </button>
+            <button
+              onClick={() => setDocType('report')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                background: docType === 'report' ? '#0284c7' : 'transparent',
+                color: docType === 'report' ? '#fff' : '#94a3b8',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+            >
+              📄 Rapports Médicaux
             </button>
           </div>
 

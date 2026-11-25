@@ -1,12 +1,24 @@
+// ==============================================================
+// DOCPOCKET CABINET - MODALE DE PRESCRIPTION D'EXAMENS
+// BIOLOGIE MÉDICALE & IMAGERIE RADIOLOGIQUE
+// Menu complet avec cases à cocher, recherche, ajout d'examens
+// et aperçu avant impression (conforme aux habitudes de cabinet)
+// ==============================================================
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { searchBioExams, searchImgExams } from '../services/medocsService';
+import examensData from '../data/examensAvicenna.json';
 import { savePrescription } from '../services/patientStorage';
 import { generatePrescriptionReport } from '../services/prescriptionReportGenerator';
+import { getPrescriptionSettings, savePrescriptionSettings } from '../services/prescriptionSettingsService';
+import PrintPreviewModal from './PrintPreviewModal';
 
-// Profils standards pour bilans biologiques usuels
-const BIO_PROFILES = [
+const BASE_BIO_EXAMS = examensData?.biologie || [];
+const BASE_IMG_EXAMS = examensData?.imagerie || [];
+
+// Profils rapides usuels
+const BIO_QUICK_PROFILES = [
   {
-    name: 'Standard / Routine',
+    name: 'Bilan Standard / Routine',
     icon: '🩸',
     exams: ['NFS', 'GLYCÉMIE À JEUN', 'URÉE SANGUINE', 'CRÉATININÉMIE', 'IONOGRAMME SANGUIN']
   },
@@ -31,24 +43,23 @@ const BIO_PROFILES = [
     exams: ['CRP', 'VS', 'NFS']
   },
   {
-    name: 'Bilan Diabète',
+    name: 'Bilan Diabète Suivi',
     icon: '🍬',
-    exams: ['GLYCÉMIE À JEUN', 'HÉMOGLOBINE GLYCOSYLÉE', 'MICROALBUMINURIE', 'CRÉATININÉMIE']
+    exams: ['GLYCÉMIE À JEUN', 'HÉMOGLOBINE GLYCOSYLÉE', 'MICROALBUMINURIE', 'CRÉATININÉMIE', 'BILAN MARTIAL']
   },
   {
-    name: 'Thyroïde & Métabolisme',
+    name: 'Thyroïde & Vitamines',
     icon: '🦋',
     exams: ['TSH', 'FT4 L', 'VITAMINE D', 'FERRITINEMIE']
   },
   {
-    name: 'Bilan Hémostase / Pré-op',
+    name: 'Hémostase & Pré-op',
     icon: '🩺',
     exams: ['NFS', 'TP', 'TCK', 'INR', 'GS']
   }
 ];
 
-// Profils standards pour examens radiologiques et imagerie usuels
-const IMG_PROFILES = [
+const IMG_QUICK_PROFILES = [
   {
     name: 'Thorax & Poumons',
     icon: '🩻',
@@ -91,23 +102,64 @@ const IMG_PROFILES = [
   }
 ];
 
+// Catégories thématiques
+const BIO_CATEGORIES = [
+  { id: 'all', label: 'Toutes les analyses (A-Z)', icon: '📋' },
+  { id: 'custom', label: 'Mes analyses ajoutées', icon: '⭐' },
+  { id: 'hemato', label: 'Hématologie & Coagulation', icon: '🩸', pattern: /nfs|plaquette|reticulo|frottis|coombs|sang|tp|tck|inr|dimer|vgm|hb|hemoglob|groupage|gs|tc/i },
+  { id: 'biochimie', label: 'Biochimie & Diabète', icon: '🍬', pattern: /glycem|sucre|ur[eé]e|creat|ionog|calc|phosph|magnes|acide urique|uric|protid|albumin|epp|fer|ferrit|martial/i },
+  { id: 'lipides', label: 'Lipides & Cardiaque', icon: '🫀', pattern: /cholest|hdl|ldl|triglyc|cpk|tropo|bnp|ldh|apolip/i },
+  { id: 'hepatique', label: 'Hépatique & Pancréatique', icon: '🧪', pattern: /asat|alat|transam|gamma|ggt|phosphatase|bilirub|lipase|amylas/i },
+  { id: 'infectieux', label: 'Infectieux, Urines & Bactério', icon: '🦠', pattern: /ecbu|urines|culot|copro|selle|parasit|strep|crp|vs|vitesse|pylori|chlam|leish|goutte/i },
+  { id: 'serologie', label: 'Sérologies & Virologie', icon: '🧬', pattern: /hepati|hiv|sida|covid|pcr|serolog|vdrl|tpha|varicelle/i },
+  { id: 'hormones', label: 'Hormones & Vitamines', icon: '🦋', pattern: /tsh|t3|t4|thyro|vitam|d3|b12|folate|cortis|acth|prolact|testost|oestrad|fsh|lh|hcg|bhcg|psa|insul/i }
+];
+
+const IMG_CATEGORIES = [
+  { id: 'all', label: 'Tous les examens (A-Z)', icon: '📋' },
+  { id: 'custom', label: 'Mes examens ajoutés', icon: '⭐' },
+  { id: 'radio', label: 'Radiographie Standard', icon: '🩻', pattern: /radiograph|radio|rachis|asp|thorax|bassin|genou|epaule|cheville|main|pied|poignet|blond|gril|incidence/i },
+  { id: 'echo', label: 'Échographie & Doppler', icon: '🔊', pattern: /echo|doppler|ultras/i },
+  { id: 'tdm', label: 'Scanner (TDM)', icon: '📡', pattern: /scanner|tdm|angioscan/i },
+  { id: 'irm', label: 'IRM (Résonance Magnétique)', icon: '🧲', pattern: /irm|reson/i },
+  { id: 'seno', label: 'Sénologie & Densitométrie', icon: '🎗️', pattern: /mammo|osteo|densit/i }
+];
+
 export default function ExamPrescriptionModal({
   isOpen = false,
   onClose = () => {},
   initialType = 'biologie', // 'biologie' | 'imagerie'
   patient = null,
   consultation = null,
-  onPrescriptionSaved = null
+  onPrescriptionSaved = null,
+  onOpenLayoutEditor = null
 }) {
   const [activeType, setActiveType] = useState(initialType);
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedExamsMap, setSelectedExamsMap] = useState(new Map()); // name -> instruction
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [indication, setIndication] = useState('');
   const [notes, setNotes] = useState('');
-  const [selectedExams, setSelectedExams] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [customExamInput, setCustomExamInput] = useState('');
+  const [newExamInput, setNewExamInput] = useState('');
+  const [paperFormat, setPaperFormat] = useState(() => getPrescriptionSettings().pageSize || 'A5');
+  const [customBioList, setCustomBioList] = useState([]);
+  const [customImgList, setCustomImgList] = useState([]);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+
+  // Charger les examens personnalisés depuis localStorage
+  useEffect(() => {
+    try {
+      const bioRaw = localStorage.getItem('docpocket_custom_bio_exams');
+      if (bioRaw) setCustomBioList(JSON.parse(bioRaw));
+      const imgRaw = localStorage.getItem('docpocket_custom_img_exams');
+      if (imgRaw) setCustomImgList(JSON.parse(imgRaw));
+    } catch (e) {
+      console.warn("Erreur lecture examens personnalisés:", e);
+    }
+  }, []);
 
   // Synchronisation lors de l'ouverture
   useEffect(() => {
@@ -115,63 +167,155 @@ export default function ExamPrescriptionModal({
       setActiveType(initialType || 'biologie');
       setDate(new Date().toISOString().split('T')[0]);
       setIndication(consultation?.diagnostic || consultation?.motif || '');
-      setNotes(activeType === 'biologie' ? 'À jeun le matin du prélèvement.' : '');
-      setSelectedExams([]);
+      setNotes(initialType === 'biologie' ? 'À jeun le matin du prélèvement.' : '');
+      setSelectedExamsMap(new Map());
       setSearchQuery('');
-      setCustomExamInput('');
+      setSelectedCategory('all');
+      setNewExamInput('');
       setSavedSuccess(false);
+      setShowPrintPreview(false);
+      const s = getPrescriptionSettings();
+      setPaperFormat(s.pageSize || 'A5');
     }
   }, [isOpen, initialType, consultation]);
 
-  // Suggestions filtrées en direct selon la recherche
-  const searchResults = useMemo(() => {
-    if (activeType === 'biologie') {
-      return searchBioExams(searchQuery, 12);
-    } else {
-      return searchImgExams(searchQuery, 12);
-    }
-  }, [activeType, searchQuery]);
-
-  if (!isOpen) return null;
-
   const isBio = activeType === 'biologie';
-  const profiles = isBio ? BIO_PROFILES : IMG_PROFILES;
   const themeColor = isBio ? '#059669' : '#0284c7';
   const themeBg = isBio ? 'rgba(5, 150, 105, 0.15)' : 'rgba(2, 132, 199, 0.15)';
-  const themeBorder = isBio ? 'rgba(5, 150, 105, 0.4)' : 'rgba(2, 132, 199, 0.4)';
+  const themeBorder = isBio ? 'rgba(5, 150, 105, 0.35)' : 'rgba(2, 132, 199, 0.35)';
 
-  const handleAddExam = (examName, instruction = '') => {
-    if (!examName || !examName.trim()) return;
-    const clean = examName.trim();
-    if (selectedExams.some(e => e.nom.toUpperCase() === clean.toUpperCase())) {
-      return; // déjà dans la liste
+  // Fusionner la base d'origine et les examens personnalisés du médecin
+  const allAvailableExams = useMemo(() => {
+    const base = isBio ? BASE_BIO_EXAMS : BASE_IMG_EXAMS;
+    const custom = isBio ? customBioList : customImgList;
+    const set = new Set([...custom, ...base]);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+  }, [isBio, customBioList, customImgList]);
+
+  // Filtrage selon catégorie et recherche
+  const filteredExams = useMemo(() => {
+    let list = allAvailableExams;
+    const categories = isBio ? BIO_CATEGORIES : IMG_CATEGORIES;
+    const currentCatObj = categories.find(c => c.id === selectedCategory);
+
+    if (selectedCategory === 'custom') {
+      const customSet = new Set(isBio ? customBioList : customImgList);
+      list = list.filter(ex => customSet.has(ex));
+    } else if (currentCatObj && currentCatObj.pattern) {
+      list = list.filter(ex => currentCatObj.pattern.test(ex));
     }
-    setSelectedExams(prev => [...prev, { nom: clean, posologie: instruction }]);
-  };
 
-  const handleRemoveExam = (index) => {
-    setSelectedExams(prev => prev.filter((_, i) => i !== index));
-  };
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toUpperCase();
+      list = list.filter(ex => ex.toUpperCase().includes(q));
+    }
 
-  const handleApplyProfile = (profile) => {
-    const newItems = [...selectedExams];
-    profile.exams.forEach(ex => {
-      if (!newItems.some(item => item.nom.toUpperCase() === ex.toUpperCase())) {
-        newItems.push({ nom: ex, posologie: '' });
-      }
-    });
-    setSelectedExams(newItems);
-  };
+    return list;
+  }, [allAvailableExams, selectedCategory, searchQuery, isBio, customBioList, customImgList]);
 
-  const handleAddCustomExam = (e) => {
+  // Ajouter un nouvel examen personnalisé au catalogue
+  const handleAddNewExam = (e) => {
     e?.preventDefault();
-    if (!customExamInput.trim()) return;
-    handleAddExam(customExamInput.trim());
-    setCustomExamInput('');
+    if (!newExamInput.trim()) return;
+    const clean = newExamInput.trim().toUpperCase();
+
+    if (isBio) {
+      if (!customBioList.includes(clean)) {
+        const updated = [clean, ...customBioList];
+        setCustomBioList(updated);
+        localStorage.setItem('docpocket_custom_bio_exams', JSON.stringify(updated));
+      }
+    } else {
+      if (!customImgList.includes(clean)) {
+        const updated = [clean, ...customImgList];
+        setCustomImgList(updated);
+        localStorage.setItem('docpocket_custom_img_exams', JSON.stringify(updated));
+      }
+    }
+
+    // Cocher automatiquement le nouvel examen
+    toggleExam(clean);
+    setNewExamInput('');
   };
 
-  // Préparation de l'objet prescription
+  // Supprimer un examen personnalisé
+  const handleDeleteCustomExam = (examName, e) => {
+    e?.stopPropagation();
+    if (!window.confirm(`Supprimer « ${examName} » de vos examens personnalisés ?`)) return;
+    if (isBio) {
+      const updated = customBioList.filter(x => x !== examName);
+      setCustomBioList(updated);
+      localStorage.setItem('docpocket_custom_bio_exams', JSON.stringify(updated));
+    } else {
+      const updated = customImgList.filter(x => x !== examName);
+      setCustomImgList(updated);
+      localStorage.setItem('docpocket_custom_img_exams', JSON.stringify(updated));
+    }
+    // Décocher si présent
+    if (selectedExamsMap.has(examName)) {
+      setSelectedExamsMap(prev => {
+        const next = new Map(prev);
+        next.delete(examName);
+        return next;
+      });
+    }
+  };
+
+  // Cocher / Décocher un examen
+  const toggleExam = (examName) => {
+    setSelectedExamsMap(prev => {
+      const next = new Map(prev);
+      if (next.has(examName)) {
+        next.delete(examName);
+      } else {
+        next.set(examName, isBio ? 'À jeun' : '');
+      }
+      return next;
+    });
+  };
+
+  // Mettre à jour la consigne/précision d'un examen coché
+  const updateInstruction = (examName, instruction) => {
+    setSelectedExamsMap(prev => {
+      const next = new Map(prev);
+      next.set(examName, instruction);
+      return next;
+    });
+  };
+
+  // Cocher tout un profil rapide en 1 clic
+  const handleApplyProfile = (profile) => {
+    setSelectedExamsMap(prev => {
+      const next = new Map(prev);
+      profile.exams.forEach(ex => {
+        if (!next.has(ex)) {
+          next.set(ex, '');
+        }
+      });
+      return next;
+    });
+  };
+
+  // Tout décocher
+  const handleUncheckAll = () => {
+    setSelectedExamsMap(new Map());
+  };
+
+  // Changement de format papier (A5 ou A4) avec sauvegarde permanente
+  const handleChangePaperFormat = (fmt) => {
+    setPaperFormat(fmt);
+    savePrescriptionSettings({ pageSize: fmt });
+    localStorage.setItem('docpocket_active_print_paper_size', fmt);
+  };
+
+  // Construction de l'objet prescription
   const buildPrescriptionObject = () => {
+    const items = Array.from(selectedExamsMap.entries()).map(([nom, posologie]) => ({
+      nom,
+      posologie: posologie || (isBio ? 'Laboratoire d\'analyses médicales' : 'Centre d\'imagerie médicale'),
+      forme: isBio ? 'Bilan Bio' : 'Imagerie'
+    }));
+
     return {
       patientId: patient ? patient.id : null,
       consultationId: consultation ? consultation.id : null,
@@ -180,18 +324,14 @@ export default function ExamPrescriptionModal({
       date: date || new Date().toISOString().split('T')[0],
       indication: indication.trim(),
       notes: notes.trim(),
-      items: selectedExams.map(ex => ({
-        nom: ex.nom,
-        posologie: ex.posologie || (isBio ? 'Analyse au laboratoire' : 'Examen radiologique'),
-        forme: isBio ? 'Bilan Bio' : 'Imagerie'
-      }))
+      items
     };
   };
 
   // Enregistrement dans IndexedDB
   const handleSave = async () => {
-    if (selectedExams.length === 0) {
-      alert("Veuillez sélectionner au moins un examen à prescrire.");
+    if (selectedExamsMap.size === 0) {
+      alert("Veuillez cocher au moins une analyse ou un examen médical.");
       return;
     }
     try {
@@ -213,553 +353,717 @@ export default function ExamPrescriptionModal({
     }
   };
 
-  // Aperçu & Impression officielle
-  const handlePrint = async () => {
-    if (selectedExams.length === 0) {
-      alert("Veuillez sélectionner au moins un examen à imprimer.");
-      return;
-    }
-    const prescObj = buildPrescriptionObject();
-    try {
-      // Sauvegarde automatique en tâche de fond pour traçabilité
-      savePrescription(prescObj).catch(() => {});
-      generatePrescriptionReport(patient || { nom: 'Patient', prenom: '' }, prescObj);
-    } catch (err) {
-      alert("Erreur lors de la génération de l'impression : " + err.message);
-    }
-  };
+  if (!isOpen) return null;
+
+  const quickProfiles = isBio ? BIO_QUICK_PROFILES : IMG_QUICK_PROFILES;
+  const categories = isBio ? BIO_CATEGORIES : IMG_CATEGORIES;
+  const selectedCount = selectedExamsMap.size;
+  const prescObjForPreview = buildPrescriptionObject();
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background: 'rgba(15, 23, 42, 0.8)',
-        backdropFilter: 'blur(5px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px'
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <>
       <div
         style={{
-          background: '#0f172a',
-          border: `1.5px solid ${themeBorder}`,
-          borderRadius: '16px',
-          width: '100%',
-          maxWidth: '850px',
-          maxHeight: '92vh',
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(6px)',
           display: 'flex',
-          flexDirection: 'column',
-          boxShadow: `0 20px 45px rgba(0, 0, 0, 0.6), 0 0 30px ${themeBg}`,
-          color: '#f8fafc',
-          overflow: 'hidden'
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '12px'
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
         }}
       >
-        {/* En-tête Modale */}
         <div
           style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            background: '#0f172a',
+            border: `1.5px solid ${themeBorder}`,
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '1220px',
+            height: '92vh',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)'
+            flexDirection: 'column',
+            boxShadow: `0 24px 50px rgba(0, 0, 0, 0.7), 0 0 35px ${themeBg}`,
+            color: '#f8fafc',
+            overflow: 'hidden'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '1.6rem' }}>{isBio ? '🧪' : '🩻'}</span>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#fff' }}>
-                {isBio ? 'Prescription de Bilan Biologique & Analyses' : 'Prescription d\'Imagerie Médicale & Radiologie'}
-              </h2>
-              <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '2px' }}>
-                {patient ? (
-                  <>
-                    Patient : <strong style={{ color: '#38bdf8' }}>{patient.prenom} {patient.nom}</strong>
-                    {patient.cin && ` • CIN: ${patient.cin}`}
-                    {patient.age && ` • ${patient.age} ans`}
-                  </>
-                ) : (
-                  'Demande d\'examen médical'
-                )}
+          {/* En-tête Supérieur */}
+          <div
+            style={{
+              padding: '12px 20px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%)',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '1.6rem' }}>{isBio ? '🧪' : '🩻'}</span>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{isBio ? 'Prescription de Bilan Biologique' : 'Prescription d\'Imagerie Médicale & Radiologie'}</span>
+                  <span style={{
+                    fontSize: '0.78rem',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: selectedCount > 0 ? themeBg : 'rgba(255,255,255,0.06)',
+                    color: selectedCount > 0 ? (isBio ? '#34d399' : '#38bdf8') : '#94a3b8',
+                    border: `1px solid ${selectedCount > 0 ? themeBorder : 'rgba(255,255,255,0.1)'}`,
+                    fontWeight: 700
+                  }}>
+                    {selectedCount} coché{selectedCount > 1 ? 's' : ''}
+                  </span>
+                </h2>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+                  {patient ? (
+                    <>
+                      Patient : <strong style={{ color: '#38bdf8' }}>{patient.prenom} {patient.nom}</strong>
+                      {patient.age && ` • ${patient.age} ans`}
+                      {patient.cin && ` • CIN: ${patient.cin}`}
+                    </>
+                  ) : (
+                    'Sélectionnez et cochez les examens demandés'
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Bascule Rapide Biologie / Imagerie */}
-            <div style={{ display: 'flex', background: '#1e293b', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-              <button
-                type="button"
-                onClick={() => setActiveType('biologie')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: isBio ? '#059669' : 'transparent',
-                  color: isBio ? '#fff' : '#94a3b8',
-                  fontWeight: isBio ? 700 : 500,
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <span>🧪</span> Bio
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveType('imagerie')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: !isBio ? '#0284c7' : 'transparent',
-                  color: !isBio ? '#fff' : '#94a3b8',
-                  fontWeight: !isBio ? 700 : 500,
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <span>🩻</span> Imagerie
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#94a3b8',
-                borderRadius: '8px',
-                width: '32px',
-                height: '32px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontSize: '1.1rem'
-              }}
-              title="Fermer"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
-        {/* Corps de la modale avec défilement */}
-        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
-          {/* Section Profils Rapides */}
-          <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>⚡</span> Profils Types Fréquents (Ajout en 1 Clic) :
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {profiles.map((p, idx) => (
+            {/* Bascule Type d'Examen (Biologie / Imagerie) & Format Papier */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* Bascule Bio / Imagerie */}
+              <div style={{ display: 'flex', background: '#1e293b', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
                 <button
-                  key={idx}
                   type="button"
-                  onClick={() => handleApplyProfile(p)}
-                  title={`Ajouter : ${p.exams.join(', ')}`}
+                  onClick={() => {
+                    setActiveType('biologie');
+                    setSelectedCategory('all');
+                  }}
                   style={{
-                    background: '#1e293b',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    color: '#e2e8f0',
-                    padding: '6px 12px',
-                    borderRadius: '20px',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: isBio ? '#059669' : 'transparent',
+                    color: isBio ? '#fff' : '#94a3b8',
+                    fontWeight: isBio ? 700 : 500,
+                    fontSize: '0.82rem',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = themeColor;
-                    e.currentTarget.style.background = themeBg;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                    e.currentTarget.style.background = '#1e293b';
+                    gap: '6px'
                   }}
                 >
-                  <span>{p.icon}</span>
-                  <span>{p.name}</span>
-                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>({p.exams.length})</span>
+                  <span>🧪</span> Analyses Biologiques
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveType('imagerie');
+                    setSelectedCategory('all');
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: !isBio ? '#0284c7' : 'transparent',
+                    color: !isBio ? '#fff' : '#94a3b8',
+                    fontWeight: !isBio ? 700 : 500,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span>🩻</span> Imagerie & Radiologie
+                </button>
+              </div>
+
+              {/* Format Papier A5 / A4 (Persistant) */}
+              <div style={{ display: 'flex', background: '#1e293b', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => handleChangePaperFormat('A5')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: paperFormat === 'A5' ? '#0284c7' : 'transparent',
+                    color: paperFormat === 'A5' ? '#fff' : '#94a3b8',
+                    fontWeight: paperFormat === 'A5' ? 700 : 500,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer'
+                  }}
+                  title="Format A5 (148 x 210 mm) - Sauvegarde automatique"
+                >
+                  📑 A5
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChangePaperFormat('A4')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: paperFormat === 'A4' ? '#0284c7' : 'transparent',
+                    color: paperFormat === 'A4' ? '#fff' : '#94a3b8',
+                    fontWeight: paperFormat === 'A4' ? 700 : 500,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer'
+                  }}
+                  title="Format A4 (210 x 297 mm) - Sauvegarde automatique"
+                >
+                  📄 A4
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#94a3b8',
+                  borderRadius: '8px',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '1.1rem'
+                }}
+                title="Fermer"
+              >
+                ✕
+              </button>
             </div>
           </div>
 
-          {/* Recherche dans le Catalogue Officiel & Saisie Libre */}
-          <div style={{ background: '#1e293b', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 280px' }}>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, marginBottom: '4px' }}>
-                  🔍 Rechercher dans le catalogue {isBio ? 'biologique' : 'radiologique'} :
-                </label>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={isBio ? "Ex: NFS, Glycémie, Créat, TSH, Ionogramme..." : "Ex: Thorax, Écho abdominale, Scanner, IRM..."}
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #334155',
-                    background: '#0f172a',
-                    color: '#fff',
-                    fontSize: '0.88rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
+          {/* Corps en 2 Colonnes (Menu à gauche, Ordonnance à droite) */}
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            
+            {/* COLONNE GAUCHE : Menu avec cases à cocher, recherche et ajout */}
+            <div style={{ flex: '1 1 65%', display: 'flex', flexDirection: 'column', borderRight: '1px solid rgba(255, 255, 255, 0.08)', background: '#0b1120' }}>
+              
+              {/* Barre de Recherche Rapide & Ajout de Nouvel Examen */}
+              <div style={{ padding: '12px 16px', background: '#0f172a', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 300px', position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>🔍</span>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={isBio ? "Rechercher parmi les analyses (ex: NFS, Glycémie, TSH, Urée...)" : "Rechercher un examen (ex: Thorax, Écho abdominale, Scanner...)"}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px 9px 36px',
+                        borderRadius: '8px',
+                        border: '1px solid #334155',
+                        background: '#1e293b',
+                        color: '#fff',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
 
-              <div style={{ flex: '1 1 260px' }}>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, marginBottom: '4px' }}>
-                  ✍️ Ou ajouter un examen personnalisé :
-                </label>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <input
-                    type="text"
-                    value={customExamInput}
-                    onChange={(e) => setCustomExamInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddCustomExam(e);
-                    }}
-                    placeholder="Saisie libre..."
-                    style={{
-                      flex: 1,
-                      padding: '9px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid #334155',
-                      background: '#0f172a',
-                      color: '#fff',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddCustomExam}
-                    style={{
-                      padding: '9px 14px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: themeColor,
-                      color: '#fff',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    + Ajouter
-                  </button>
+                  {/* Saisie & Ajout d'un nouvel examen personnalisé */}
+                  <form onSubmit={handleAddNewExam} style={{ display: 'flex', gap: '6px', flex: '1 1 240px' }}>
+                    <input
+                      type="text"
+                      value={newExamInput}
+                      onChange={(e) => setNewExamInput(e.target.value)}
+                      placeholder="+ Ajouter un nouvel examen..."
+                      style={{
+                        flex: 1,
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px dashed #475569',
+                        background: '#0f172a',
+                        color: '#cbd5e1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newExamInput.trim()}
+                      style={{
+                        padding: '9px 14px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: newExamInput.trim() ? themeColor : '#334155',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.82rem',
+                        cursor: newExamInput.trim() ? 'pointer' : 'default',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Ajouter
+                    </button>
+                  </form>
                 </div>
-              </div>
-            </div>
 
-            {/* Nuage de suggestions issues de la recherche */}
-            {searchQuery.trim().length > 0 && searchResults.length > 0 && (
-              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed rgba(255, 255, 255, 0.1)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '6px' }}>
-                  Résultats trouvés ({searchResults.length}) — Cliquez pour ajouter :
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '120px', overflowY: 'auto' }}>
-                  {searchResults.map((ex, idx) => {
-                    const isAlreadySelected = selectedExams.some(item => item.nom.toUpperCase() === ex.toUpperCase());
+                {/* Filtres par Catégories */}
+                <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
+                  {categories.map(cat => {
+                    const isSelected = selectedCategory === cat.id;
                     return (
                       <button
-                        key={idx}
+                        key={cat.id}
                         type="button"
-                        onClick={() => handleAddExam(ex)}
-                        disabled={isAlreadySelected}
+                        onClick={() => setSelectedCategory(cat.id)}
                         style={{
-                          background: isAlreadySelected ? 'rgba(255, 255, 255, 0.05)' : 'rgba(56, 189, 248, 0.12)',
-                          border: isAlreadySelected ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(56, 189, 248, 0.3)',
-                          color: isAlreadySelected ? '#64748b' : '#38bdf8',
-                          padding: '4px 10px',
+                          padding: '5px 10px',
                           borderRadius: '6px',
+                          border: isSelected ? `1px solid ${themeColor}` : '1px solid rgba(255, 255, 255, 0.08)',
+                          background: isSelected ? themeBg : '#1e293b',
+                          color: isSelected ? '#fff' : '#94a3b8',
                           fontSize: '0.78rem',
-                          cursor: isAlreadySelected ? 'default' : 'pointer',
-                          fontWeight: 500
+                          fontWeight: isSelected ? 700 : 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        {isAlreadySelected ? '✓ ' : '+ '} {ex}
+                        <span>{cat.icon}</span>
+                        <span>{cat.label}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Liste des Examens Sélectionnés pour l'Ordonnance */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>📋</span> Examens Prescrits ({selectedExams.length}) :
-              </div>
-              {selectedExams.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedExams([])}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#f87171',
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  Tout effacer
-                </button>
-              )}
-            </div>
-
-            {selectedExams.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', background: '#1e293b', borderRadius: '10px', border: '1px dashed #334155', color: '#94a3b8', fontSize: '0.85rem' }}>
-                Aucun examen sélectionné pour le moment. Cliquez sur un profil type ci-dessus ou effectuez une recherche pour commencer la prescription.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-                {selectedExams.map((item, idx) => (
-                  <div
+              {/* Raccourcis Profils Types en 1 Clic */}
+              <div style={{ padding: '8px 16px', background: '#0b1120', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto' }}>
+                <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>⚡ Profils usuels :</span>
+                {quickProfiles.map((p, idx) => (
+                  <button
                     key={idx}
+                    type="button"
+                    onClick={() => handleApplyProfile(p)}
                     style={{
+                      padding: '4px 9px',
+                      borderRadius: '16px',
+                      background: 'rgba(30, 41, 59, 0.8)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      color: '#cbd5e1',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '10px',
-                      background: '#1e293b',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255, 255, 255, 0.08)'
+                      gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = themeColor;
+                      e.currentTarget.style.color = '#fff';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                      e.currentTarget.style.color = '#cbd5e1';
                     }}
                   >
-                    <span style={{ fontWeight: 700, color: themeColor, fontSize: '0.85rem', minWidth: '22px' }}>
-                      {idx + 1}.
-                    </span>
-                    <strong style={{ flex: '1 1 240px', color: '#fff', fontSize: '0.9rem' }}>
-                      {item.nom}
-                    </strong>
-                    <input
-                      type="text"
-                      value={item.posologie || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSelectedExams(prev => prev.map((it, i) => i === idx ? { ...it, posologie: val } : it));
-                      }}
-                      placeholder="Précision ou consigne..."
-                      style={{
-                        flex: '1 1 180px',
-                        padding: '5px 8px',
-                        borderRadius: '4px',
-                        border: '1px solid #334155',
-                        background: '#0f172a',
-                        color: '#cbd5e1',
-                        fontSize: '0.8rem',
-                        outline: 'none'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveExam(idx)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#94a3b8',
-                        cursor: 'pointer',
-                        fontSize: '1rem',
-                        padding: '2px 6px',
-                        borderRadius: '4px'
-                      }}
-                      title="Retirer cet examen"
-                      onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                      onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
-                    >
-                      ✕
-                    </button>
-                  </div>
+                    <span>{p.icon}</span>
+                    <span>{p.name}</span>
+                  </button>
                 ))}
               </div>
-            )}
-          </div>
 
-          {/* Renseignements Cliniques & Notes */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, marginBottom: '4px' }}>
-                🎯 Renseignements cliniques / Diagnostic (facultatif) :
-              </label>
-              <input
-                type="text"
-                value={indication}
-                onChange={(e) => setIndication(e.target.value)}
-                placeholder="Ex: Diabète de type 2, HTA, Douleur fosse iliaque..."
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #334155',
-                  background: '#1e293b',
-                  color: '#fff',
-                  fontSize: '0.85rem',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
+              {/* Liste de TOUTES les analyses / examens avec CASES À COCHER */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                    Affichage de <strong style={{ color: '#fff' }}>{filteredExams.length}</strong> examen(s) — Cochez les cases souhaitées :
+                  </div>
+                  {selectedCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleUncheckAll}
+                      style={{ background: 'transparent', border: 'none', color: '#f87171', fontSize: '0.76rem', cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Tout décocher
+                    </button>
+                  )}
+                </div>
+
+                {filteredExams.length === 0 ? (
+                  <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                    Aucun examen ne correspond à votre recherche. Vous pouvez l'ajouter directement via le champ ci-dessus.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '6px' }}>
+                    {filteredExams.map((examName) => {
+                      const isChecked = selectedExamsMap.has(examName);
+                      const isCustom = isBio ? customBioList.includes(examName) : customImgList.includes(examName);
+
+                      return (
+                        <div
+                          key={examName}
+                          onClick={() => toggleExam(examName)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: isChecked ? themeBg : '#1e293b',
+                            border: isChecked ? `1.5px solid ${themeColor}` : '1px solid rgba(255, 255, 255, 0.06)',
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            transition: 'all 0.1s ease'
+                          }}
+                        >
+                          {/* Case à cocher native et stylée */}
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}} // géré par le clic sur le conteneur
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              cursor: 'pointer',
+                              accentColor: themeColor
+                            }}
+                          />
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: '0.86rem',
+                              fontWeight: isChecked ? 700 : 500,
+                              color: isChecked ? '#fff' : '#e2e8f0',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}>
+                              {examName}
+                            </div>
+                          </div>
+
+                          {isCustom && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
+                                Perso
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteCustomExam(examName, e)}
+                                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem' }}
+                                title="Supprimer cet examen personnalisé"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, marginBottom: '4px' }}>
-                📝 Recommandations & Consignes particulières :
-              </label>
-              <input
-                type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={isBio ? "Ex: À jeun depuis 12 heures." : "Ex: En urgence, apporter les anciens clichés..."}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #334155',
-                  background: '#1e293b',
-                  color: '#fff',
-                  fontSize: '0.85rem',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
+            {/* COLONNE DROITE : Ordonnance / Demande d'examen en cours de rédaction */}
+            <div style={{ flex: '1 1 35%', display: 'flex', flexDirection: 'column', background: '#0f172a' }}>
+              
+              {/* En-tête de la demande */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📋</span> Demande en cours ({selectedCount})
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <label style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Date :</label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid #334155',
+                      background: '#0f172a',
+                      color: '#fff',
+                      fontSize: '0.78rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Liste des examens cochés */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {selectedCount === 0 ? (
+                  <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📝</div>
+                    Aucun examen sélectionné.<br />
+                    Cochez les analyses ou examens souhaités dans le menu de gauche.
+                  </div>
+                ) : (
+                  Array.from(selectedExamsMap.entries()).map(([examName, instruction], idx) => (
+                    <div
+                      key={examName}
+                      style={{
+                        background: '#1e293b',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        padding: '8px 10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700, color: themeColor, fontSize: '0.82rem' }}>{idx + 1}.</span>
+                          <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{examName}</strong>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleExam(examName)}
+                          style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem' }}
+                          title="Décocher cet examen"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {/* Consigne optionnelle pour cet examen */}
+                      <input
+                        type="text"
+                        value={instruction}
+                        onChange={(e) => updateInstruction(examName, e.target.value)}
+                        placeholder={isBio ? "Consigne (ex: À jeun 12h, 2ème fraction)..." : "Précision (ex: Face et profil, bilatéral)..."}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #334155',
+                          background: '#0f172a',
+                          color: '#cbd5e1',
+                          fontSize: '0.78rem',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Renseignements cliniques & Consignes globales */}
+              <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', background: '#1e293b', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', color: '#94a3b8', fontWeight: 600, marginBottom: '3px' }}>
+                    🎯 Renseignements cliniques / Diagnostic :
+                  </label>
+                  <input
+                    type="text"
+                    value={indication}
+                    onChange={(e) => setIndication(e.target.value)}
+                    placeholder="Ex: Diabète de type 2, HTA, Douleur lombaire..."
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #334155',
+                      background: '#0f172a',
+                      color: '#fff',
+                      fontSize: '0.82rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', color: '#94a3b8', fontWeight: 600, marginBottom: '3px' }}>
+                    📝 Consigne générale imprimée :
+                  </label>
+                  <input
+                    type="text"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder={isBio ? "Ex: À jeun. Résultats à communiquer au médecin traitant." : "Ex: En urgence. Communiquer les clichés."}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #334155',
+                      background: '#0f172a',
+                      color: '#fff',
+                      fontSize: '0.82rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {savedSuccess && (
+                  <div style={{ padding: '6px 10px', borderRadius: '6px', background: 'rgba(34, 197, 94, 0.2)', border: '1px solid #22c55e', color: '#4ade80', fontSize: '0.8rem', textAlign: 'center' }}>
+                    ✓ Enregistré dans le dossier patient !
+                  </div>
+                )}
+              </div>
+
+              {/* Boutons d'Action : Aperçu, Imprimer, Enregistrer */}
+              <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', background: '#0f172a', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {/* Bouton APERÇU AVANT IMPRESSION */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (selectedCount === 0) {
+                        alert("Veuillez cocher au moins une analyse ou un examen.");
+                        return;
+                      }
+                      try {
+                        const prescObj = buildPrescriptionObject();
+                        const id = await savePrescription(prescObj);
+                        if (onPrescriptionSaved) {
+                          onPrescriptionSaved({ ...prescObj, id });
+                        }
+                      } catch (e) {
+                        console.warn("Sauvegarde préalable avant aperçu:", e);
+                      }
+                      setShowPrintPreview(true);
+                    }}
+                    disabled={selectedCount === 0}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid #38bdf8',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: selectedCount === 0 ? 'not-allowed' : 'pointer',
+                      opacity: selectedCount === 0 ? 0.5 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                    title="Voir l'aperçu exact de la feuille A5/A4 avant d'imprimer"
+                  >
+                    <span>👁️</span> Aperçu avant impression
+                  </button>
+
+                  {/* Bouton IMPRESSION DIRECTE AVEC SAUVEGARDE AUTOMATIQUE */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (selectedCount === 0) {
+                        alert("Veuillez cocher au moins une analyse ou un examen.");
+                        return;
+                      }
+                      try {
+                        setSaving(true);
+                        const prescObj = buildPrescriptionObject();
+                        // Enregistrement automatique immédiat dans le dossier du patient
+                        const id = await savePrescription(prescObj);
+                        setSavedSuccess(true);
+                        if (onPrescriptionSaved) {
+                          onPrescriptionSaved({ ...prescObj, id });
+                        }
+                        // Lancement de l'impression physique
+                        generatePrescriptionReport(patient || { nom: 'Patient', prenom: '' }, { ...prescObj, id });
+                      } catch (err) {
+                        console.warn("Erreur sauvegarde auto avant impression:", err);
+                        generatePrescriptionReport(patient || { nom: 'Patient', prenom: '' }, buildPrescriptionObject());
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    disabled={saving || selectedCount === 0}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: (saving || selectedCount === 0) ? 'not-allowed' : 'pointer',
+                      opacity: (saving || selectedCount === 0) ? 0.5 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>🖨️</span> {saving ? 'Enregistrement...' : 'Imprimer'}
+                  </button>
+                </div>
+
+                {/* Bouton ENREGISTRER DANS LE DOSSIER */}
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || selectedCount === 0}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: isBio 
+                      ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' 
+                      : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: (saving || selectedCount === 0) ? 'not-allowed' : 'pointer',
+                    opacity: (saving || selectedCount === 0) ? 0.5 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span>💾</span> {saving ? 'Enregistrement...' : 'Enregistrer dans le dossier patient'}
+                </button>
+              </div>
+
             </div>
-          </div>
-
-          {/* Message de succès temporaire */}
-          {savedSuccess && (
-            <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(34, 197, 94, 0.2)', border: '1px solid #22c55e', color: '#4ade80', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>✅</span> Ordonnance enregistrée avec succès dans le dossier patient !
-            </div>
-          )}
-        </div>
-
-        {/* Pied de Modale & Boutons d'Action */}
-        <div
-          style={{
-            padding: '14px 20px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '10px',
-            flexWrap: 'wrap',
-            background: '#0f172a'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>Date :</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              style={{
-                padding: '6px 10px',
-                borderRadius: '6px',
-                border: '1px solid #334155',
-                background: '#1e293b',
-                color: '#fff',
-                fontSize: '0.82rem',
-                outline: 'none'
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '9px 16px',
-                borderRadius: '8px',
-                border: '1px solid #334155',
-                background: 'transparent',
-                color: '#94a3b8',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer'
-              }}
-            >
-              Annuler
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={selectedExams.length === 0}
-              style={{
-                padding: '9px 18px',
-                borderRadius: '8px',
-                border: 'none',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                color: '#fff',
-                fontWeight: 600,
-                fontSize: '0.88rem',
-                cursor: selectedExams.length === 0 ? 'not-allowed' : 'pointer',
-                opacity: selectedExams.length === 0 ? 0.5 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 2px 10px rgba(2, 132, 199, 0.35)'
-              }}
-            >
-              <span>🖨️</span> Imprimer Demande
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || selectedExams.length === 0}
-              style={{
-                padding: '9px 20px',
-                borderRadius: '8px',
-                border: 'none',
-                background: isBio 
-                  ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' 
-                  : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '0.88rem',
-                cursor: (saving || selectedExams.length === 0) ? 'not-allowed' : 'pointer',
-                opacity: (saving || selectedExams.length === 0) ? 0.5 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: isBio 
-                  ? '0 2px 10px rgba(5, 150, 105, 0.4)' 
-                  : '0 2px 10px rgba(37, 99, 235, 0.4)'
-              }}
-            >
-              <span>💾</span> {saving ? 'Enregistrement...' : 'Enregistrer dans le dossier'}
-            </button>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Modale d'Aperçu avant impression dédiée */}
+      {showPrintPreview && (
+        <PrintPreviewModal
+          isOpen={showPrintPreview}
+          onClose={() => setShowPrintPreview(false)}
+          title={isBio ? "Demande d'Analyses Biologiques" : "Demande d'Imagerie Médicale"}
+          patient={patient || { nom: 'Patient', prenom: '' }}
+          prescription={prescObjForPreview}
+          onOpenLayoutEditor={onOpenLayoutEditor}
+        />
+      )}
+    </>
   );
 }

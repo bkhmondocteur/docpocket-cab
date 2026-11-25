@@ -4,7 +4,7 @@
   "description": "Application médicale DocPocket Cab",
   "author": "DocPocket Cab",
   "private": true,
-  "version": "2.3.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "electron/main.js",
   "build": {
