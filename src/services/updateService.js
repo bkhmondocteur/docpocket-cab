@@ -6,9 +6,9 @@
 export const CURRENT_APP_INFO = {
   name: 'DocPocket Cab',
   fullName: 'DocPocket Cabinet Médical',
-  version: '1.0.0',
-  versionCode: 10000,
-  releaseDate: '2026-11-25',
+  version: '1.0.1',
+  versionCode: 10001,
+  releaseDate: '2026-11-26',
   author: 'Dr. Hamed BEN KHALIFA',
   specialite: 'Médecine Générale - Addictologie',
   cabinet: 'Complexe Médical Dar Attabib, Mahdia, Tunisie',
@@ -16,8 +16,8 @@ export const CURRENT_APP_INFO = {
   codeConventionnelCnam: '010002763183',
   officialRepoUrl: 'https://github.com/bkhmondocteur/docpocket-cab',
   livePwaUrl: 'https://bkhmondocteur.github.io/docpocket-cab/',
-  downloadApkUrl: 'https://github.com/bkhmondocteur/docpocket-cab/releases/download/v1.0.0/DocPocket-Cab.apk',
-  downloadExeUrl: 'https://github.com/bkhmondocteur/docpocket-cab/releases/download/v1.0.0/DocPocket-Cab-Setup.exe',
+  downloadApkUrl: 'https://github.com/bkhmondocteur/docpocket-cab/releases/download/v1.0.1/DocPocket-Cab.apk',
+  downloadExeUrl: 'https://github.com/bkhmondocteur/docpocket-cab/releases/download/v1.0.1/DocPocket-Cab-Setup.exe',
   releasesApiUrl: 'https://api.github.com/repos/bkhmondocteur/docpocket-cab/releases/latest',
   versionManifestUrl: 'https://bkhmondocteur.github.io/docpocket-cab/version.json'
 };

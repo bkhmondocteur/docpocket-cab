@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   getConsultationsByPatient,
   getPrescriptionsByPatient,
   getInvoicesByPatient,
   getCertificatesByPatient,
-  deleteInvoiceById
+  deleteInvoiceById,
+  getPatientDocuments,
+  savePatientDocument,
+  deletePatientDocument
 } from '../services/patientStorage';
 import { generateConsultationReport } from '../services/reportGenerator';
 import { generatePrescriptionReport } from '../services/prescriptionReportGenerator';
@@ -39,26 +42,45 @@ export default function PatientDetail({
   const [prescriptions, setPrescriptions] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [certificates, setCertificates] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [loadingConsults, setLoadingConsults] = useState(true);
+  const [loadingDocs, setLoadingDocs] = useState(false);
   const [showColleagueModal, setShowColleagueModal] = useState(false);
   const [consultationToDelete, setConsultationToDelete] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [showCertifModal, setShowCertifModal] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const loadDocuments = async () => {
+    try {
+      setLoadingDocs(true);
+      const docs = await getPatientDocuments(patient.id);
+      setDocuments(docs || []);
+    } catch (e) {
+      console.warn("Erreur chargement documents patient:", e);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
         setLoadingConsults(true);
-        const [cList, pList, iList, certList] = await Promise.all([
+        const [cList, pList, iList, certList, docList] = await Promise.all([
           getConsultationsByPatient(patient.id),
           getPrescriptionsByPatient(patient.id),
           getInvoicesByPatient(patient.id),
-          getCertificatesByPatient(patient.id)
+          getCertificatesByPatient(patient.id),
+          getPatientDocuments(patient.id).catch(() => [])
         ]);
         setConsultations(cList);
         setPrescriptions(pList);
         setInvoices(iList);
         setCertificates(certList);
+        setDocuments(docList || []);
       } catch (e) {
         console.error("Erreur historique consultations/ordonnances/factures/certificats patient:", e);
       } finally {
@@ -66,7 +88,63 @@ export default function PatientDetail({
       }
     };
     fetchHistory();
+
+    const handleDocSynced = (e) => {
+      if (String(e.detail?.patientId) === String(patient.id)) {
+        loadDocuments();
+      }
+    };
+    window.addEventListener('docpocket_document_synced', handleDocSynced);
+    return () => window.removeEventListener('docpocket_document_synced', handleDocSynced);
   }, [patient.id]);
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingDoc(true);
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const dataUrl = e.target.result;
+          const defaultName = file.name.replace(/\.[^/.]+$/, '');
+          const customName = window.prompt("Intitulé du document médical / résultat d'examen :", defaultName) || defaultName;
+
+          const savedDoc = await savePatientDocument({
+            patientId: patient.id,
+            name: customName.trim(),
+            type: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+            date: new Date().toISOString().slice(0, 10),
+            dataUrl
+          });
+
+          setDocuments(prev => [savedDoc, ...prev]);
+          alert(`✓ Document "${savedDoc.name}" enregistré en local et synchronisé avec vos autres appareils !`);
+        } catch (saveErr) {
+          alert("Erreur enregistrement document : " + saveErr.message);
+        } finally {
+          setUploadingDoc(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      alert("Erreur lecture fichier : " + err.message);
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleDeleteDocument = async (docItem) => {
+    if (window.confirm(`Supprimer définitivement le document "${docItem.name}" ?`)) {
+      try {
+        await deletePatientDocument(docItem.id);
+        setDocuments(prev => prev.filter(d => d.id !== docItem.id));
+      } catch (err) {
+        alert("Erreur suppression : " + err.message);
+      }
+    }
+  };
 
   const calculateAge = (birthdate) => {
     if (!birthdate) return null;
@@ -1103,6 +1181,275 @@ export default function PatientDetail({
           </div>
         )}
       </div>
+
+      {/* Section 5 : Résultats d'Examens & Documents Cliniques (Radiographies, Analyses, Scans, PDF) */}
+      <div style={{
+        background: '#0f172a',
+        padding: '24px',
+        borderRadius: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.08)'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingBottom: '12px',
+          flexWrap: 'wrap',
+          gap: '10px'
+        }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>📁</span> Résultats d'Examens & Documents Cliniques ({documents.length})
+            </h3>
+            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+              Radiographies, bilans biologiques, scanners, IRM, comptes-rendus et examens numérisés (stockage local permanent & transmission pont).
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*,application/pdf"
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              disabled={uploadingDoc}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                cursor: uploadingDoc ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)'
+              }}
+              title="Ajouter un examen, scan, radio ou compte-rendu médical au dossier patient"
+            >
+              <span>{uploadingDoc ? '⏳' : '📎'}</span>
+              <span>{uploadingDoc ? 'Enregistrement...' : '+ Ajouter un Document'}</span>
+            </button>
+          </div>
+        </div>
+
+        {loadingDocs ? (
+          <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+            Chargement des documents du dossier...
+          </div>
+        ) : documents.length === 0 ? (
+          <div style={{
+            padding: '30px 20px',
+            textAlign: 'center',
+            color: '#64748b',
+            background: 'rgba(255, 255, 255, 0.02)',
+            borderRadius: '8px',
+            border: '1px dashed rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '1.8rem' }}>🩻</span>
+            <span style={{ fontWeight: 500, color: '#94a3b8' }}>Aucun document clinique lié à ce dossier pour l'instant</span>
+            <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+              Vous pouvez rattacher directement des photos de radiographies, échographies, bilans sanguins ou comptes-rendus PDF. Ils restent sécurisés en local et sont transmis sans encombrer le Cloud.
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+            {documents.map((docItem) => {
+              const isPdf = docItem.type === 'application/pdf' || (docItem.dataUrl && docItem.dataUrl.startsWith('data:application/pdf'));
+              return (
+                <div
+                  key={docItem.id}
+                  style={{
+                    background: '#1e293b',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '8px',
+                      background: isPdf ? 'rgba(239, 68, 68, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                      border: `1px solid ${isPdf ? '#ef4444' : '#38bdf8'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.3rem',
+                      flexShrink: 0
+                    }}>
+                      {isPdf ? '📄' : '🖼️'}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <strong style={{ color: '#f8fafc', fontSize: '0.9rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={docItem.name}>
+                        {docItem.name}
+                      </strong>
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                        Ajouté le {docItem.date} {isPdf ? '• Document PDF' : '• Image clinique'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {!isPdf && docItem.dataUrl && (
+                    <div
+                      onClick={() => setPreviewDoc(docItem)}
+                      style={{
+                        height: '110px',
+                        borderRadius: '6px',
+                        overflow: 'hidden',
+                        background: '#0f172a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        border: '1px solid #334155'
+                      }}
+                      title="Cliquer pour agrandir"
+                    >
+                      <img
+                        src={docItem.dataUrl}
+                        alt={docItem.name}
+                        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isPdf) {
+                          const w = window.open('', '_blank');
+                          if (w) {
+                            w.document.write(`<iframe src="${docItem.dataUrl}" style="border:none; width:100%; height:100%; position:fixed; inset:0;"></iframe>`);
+                          }
+                        } else {
+                          setPreviewDoc(docItem);
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        background: 'rgba(56, 189, 248, 0.15)',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        color: '#38bdf8',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <span>👁️</span>
+                      <span>Ouvrir</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDocument(docItem)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#f87171',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                      title="Supprimer ce document"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Modal Plein Écran de Prévisualisation d'Examen */}
+      {previewDoc && (
+        <div
+          onClick={() => setPreviewDoc(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.92)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 100000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#1e293b',
+              border: '1px solid #38bdf8',
+              borderRadius: '16px',
+              padding: '20px',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.8)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px' }}>
+              <div>
+                <strong style={{ color: '#fff', fontSize: '1.05rem' }}>{previewDoc.name}</strong>
+                <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginLeft: '10px' }}>({previewDoc.date})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewDoc(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#f87171',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer',
+                  padding: '2px 8px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', textAlign: 'center' }}>
+              <img
+                src={previewDoc.dataUrl}
+                alt={previewDoc.name}
+                style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain', borderRadius: '8px' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Sélection Confrère pour Copie Dossier */}
       {showColleagueModal && (

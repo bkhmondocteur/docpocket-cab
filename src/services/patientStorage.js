@@ -1657,3 +1657,283 @@ export async function deleteCertificate(id) {
     req.onerror = () => reject(req.error);
   });
 }
+
+// ==============================================================
+// 8. SYNCHRONISATION GRANULAIRE : BUNDLE PAR PATIENT (ULTRA-FLUIDE)
+// ==============================================================
+
+/**
+ * Récupère le bundle médical complet d'un unique patient (patient + consultations
+ * + ordonnances + quittances + certificats + rdv) pour synchronisation atomique et granulaire.
+ */
+export async function getPatientFullBundle(patientId) {
+  if (!patientId) return null;
+  const numId = Number(patientId) || patientId;
+  const [patient, consultations, prescriptions, invoices, certificates, allAppts] = await Promise.all([
+    getPatientById(numId),
+    getConsultationsByPatient(numId),
+    getPrescriptionsByPatient(numId),
+    getInvoicesByPatient(numId),
+    getCertificatesByPatient(numId),
+    getAppointments(null).catch(() => [])
+  ]);
+
+  if (!patient) return null;
+
+  const patientAppts = (allAppts || []).filter(a =>
+    String(a.patientId) === String(numId) ||
+    (a.patientName && patient.fullname && a.patientName.trim().toUpperCase() === patient.fullname.trim().toUpperCase())
+  );
+
+  return {
+    patientId: String(patient.id),
+    patient,
+    consultations: consultations || [],
+    prescriptions: prescriptions || [],
+    invoices: invoices || [],
+    certificates: certificates || [],
+    appointments: patientAppts || [],
+    updatedAt: Date.now()
+  };
+}
+
+/**
+ * Fusionne en local le bundle reçu d'un unique patient sans jamais toucher aux autres patients.
+ */
+export async function applyIncomingPatientBundle(bundle) {
+  if (!bundle || !bundle.patient) return false;
+
+  setSyncImporting(true);
+  try {
+    const { patient, consultations = [], prescriptions = [], invoices = [], certificates = [], appointments = [] } = bundle;
+
+    // 1. Recherche ou correspondance avec le dossier patient local
+    const localPatients = await getAllPatients();
+    const bCin = (patient.cin || '').trim().toUpperCase();
+    const bKey = `${(patient.nom || '').trim().toUpperCase()}|${(patient.prenom || '').trim().toUpperCase()}|${patient.birthdate || ''}`;
+
+    let matchedLocal = null;
+    if (bCin) {
+      matchedLocal = localPatients.find(p => p.cin && p.cin.trim().toUpperCase() === bCin);
+    }
+    if (!matchedLocal && patient.nom && patient.prenom) {
+      matchedLocal = localPatients.find(p => {
+        const k = `${(p.nom || '').trim().toUpperCase()}|${(p.prenom || '').trim().toUpperCase()}|${p.birthdate || ''}`;
+        return k === bKey;
+      });
+    }
+    if (!matchedLocal && patient.id) {
+      matchedLocal = localPatients.find(p => String(p.id) === String(patient.id));
+    }
+
+    let localPatientId;
+    if (matchedLocal) {
+      localPatientId = matchedLocal.id;
+      const isBundleNewer = !matchedLocal.updatedAt || !patient.updatedAt ||
+        new Date(patient.updatedAt).getTime() >= new Date(matchedLocal.updatedAt).getTime();
+
+      const mergedPatient = isBundleNewer ? {
+        ...matchedLocal,
+        ...patient,
+        id: matchedLocal.id
+      } : {
+        ...matchedLocal,
+        telephone: patient.telephone || matchedLocal.telephone,
+        adress: patient.adress || matchedLocal.adress,
+        city: patient.city || matchedLocal.city,
+        cnamid: patient.cnamid || matchedLocal.cnamid,
+        caisse: patient.caisse || matchedLocal.caisse,
+        filiere: patient.filiere || matchedLocal.filiere,
+        apci: patient.apci || matchedLocal.apci,
+        apciLabel: patient.apciLabel || matchedLocal.apciLabel,
+        allergies: patient.allergies || matchedLocal.allergies,
+        atcd_medicaux: patient.atcd_medicaux || matchedLocal.atcd_medicaux,
+        atcd_chirurgicaux: patient.atcd_chirurgicaux || matchedLocal.atcd_chirurgicaux,
+        atcd_familiaux: patient.atcd_familiaux || matchedLocal.atcd_familiaux,
+        derniere_visite: patient.derniere_visite || matchedLocal.derniere_visite
+      };
+      await savePatient(mergedPatient);
+    } else {
+      const newPat = { ...patient };
+      delete newPat.id;
+      localPatientId = await savePatient(newPat);
+    }
+
+    // 2. Fusion des consultations du patient
+    const localConsults = await getConsultationsByPatient(localPatientId);
+    const consultLookup = new Map();
+    for (const c of localConsults) {
+      consultLookup.set(String(c.id), c);
+      consultLookup.set(`${c.date}_${(c.heure || '').slice(0, 5)}`, c);
+    }
+    for (const inc of consultations) {
+      const sig = `${inc.date}_${(inc.heure || '').slice(0, 5)}`;
+      const existing = consultLookup.get(String(inc.id)) || consultLookup.get(sig);
+      if (existing) {
+        const isIncNewer = !existing.updatedAt || !inc.updatedAt ||
+          new Date(inc.updatedAt).getTime() >= new Date(existing.updatedAt).getTime();
+        if (isIncNewer) {
+          await saveConsultation({
+            ...existing,
+            ...inc,
+            id: existing.id,
+            patientId: localPatientId
+          });
+        }
+      } else {
+        const toSave = { ...inc, patientId: localPatientId };
+        delete toSave.id;
+        await saveConsultation(toSave);
+      }
+    }
+
+    // 3. Fusion des ordonnances
+    const localPrescs = await getPrescriptionsByPatient(localPatientId);
+    const prescLookup = new Set(localPrescs.map(p => `${p.date}_${(p.items || []).map(i => i.nom).join('|')}`));
+    for (const inp of prescriptions) {
+      const key = `${inp.date}_${(inp.items || []).map(i => i.nom).join('|')}`;
+      if (!prescLookup.has(key)) {
+        const toSave = { ...inp, patientId: localPatientId };
+        delete toSave.id;
+        await savePrescription(toSave);
+        prescLookup.add(key);
+      }
+    }
+
+    // 4. Fusion des quittances et factures
+    const localInvs = await getInvoicesByPatient(localPatientId);
+    const invLookup = new Set(localInvs.map(i => i.numFacture || `${i.date}_${i.totalGlobal}`));
+    for (const ini of invoices) {
+      const key = ini.numFacture || `${ini.date}_${ini.totalGlobal}`;
+      if (!invLookup.has(key)) {
+        const toSave = { ...ini, patientId: localPatientId };
+        delete toSave.id;
+        await saveInvoice(toSave);
+        invLookup.add(key);
+      }
+    }
+
+    // 5. Fusion des certificats médicaux
+    const localCerts = await getCertificatesByPatient(localPatientId);
+    const certLookup = new Set(localCerts.map(c => `${c.date}_${c.title}`));
+    for (const inc of certificates) {
+      const key = `${inc.date}_${inc.title}`;
+      if (!certLookup.has(key)) {
+        const toSave = { ...inc, patientId: localPatientId };
+        delete toSave.id;
+        await saveCertificate(toSave);
+        certLookup.add(key);
+      }
+    }
+
+    // 6. Fusion des rendez-vous rattachés à ce patient
+    if (appointments && appointments.length > 0) {
+      const localAppts = await getAppointments(null);
+      const apptLookup = new Set(localAppts.map(a => `${a.rdvDate}_${a.rdvTime}`));
+      for (const ina of appointments) {
+        const key = `${ina.rdvDate}_${ina.rdvTime}`;
+        if (!apptLookup.has(key)) {
+          const toSave = { ...ina, patientId: localPatientId };
+          delete toSave.id;
+          await saveAppointment(toSave);
+          apptLookup.add(key);
+        }
+      }
+    }
+
+    return true;
+  } finally {
+    setSyncImporting(false);
+    notifyDataChanged('patient_bundle_merged', { patientId: bundle.patientId });
+  }
+}
+
+// ==============================================================
+// 9. STOCKAGE LOCAL DÉDIÉ DES DOCUMENTS LOURDS (DOCUMENTS & SCANS)
+// Isolés dans DocPocketFilesDB pour ne jamais alourdir les index
+// ==============================================================
+
+const FILES_DB_NAME = 'DocPocketFilesDB';
+const FILES_DB_VERSION = 1;
+const STORE_DOCUMENTS = 'patient_documents';
+
+function openFilesDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(FILES_DB_NAME, FILES_DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_DOCUMENTS)) {
+        const store = db.createObjectStore(STORE_DOCUMENTS, { keyPath: 'id' });
+        store.createIndex('patientId', 'patientId', { unique: false });
+        store.createIndex('date', 'date', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Enregistre un document clinique / résultat d'analyse / radio dans la base locale
+ */
+export async function savePatientDocument(doc) {
+  const db = await openFilesDB();
+  const item = {
+    id: doc.id || `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    patientId: String(doc.patientId),
+    name: doc.name || 'Document médical',
+    type: doc.type || 'image/jpeg',
+    date: doc.date || new Date().toISOString().slice(0, 10),
+    dataUrl: doc.dataUrl,
+    createdAt: doc.createdAt || new Date().toISOString()
+  };
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_DOCUMENTS, 'readwrite');
+    const store = tx.objectStore(STORE_DOCUMENTS);
+    const req = store.put(item);
+    req.onsuccess = () => {
+      if (!isSyncImporting) {
+        notifyDataChanged('save_document', { id: item.id, data: item });
+      }
+      resolve(item);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Récupère tous les documents cliniques et examens d'un patient
+ */
+export async function getPatientDocuments(patientId) {
+  if (!patientId) return [];
+  const db = await openFilesDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_DOCUMENTS, 'readonly');
+    const store = tx.objectStore(STORE_DOCUMENTS);
+    const index = store.index('patientId');
+    const req = index.getAll(String(patientId));
+    req.onsuccess = () => {
+      const list = req.result || [];
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      resolve(list);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Supprime un document clinique local
+ */
+export async function deletePatientDocument(docId) {
+  const db = await openFilesDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_DOCUMENTS, 'readwrite');
+    const store = tx.objectStore(STORE_DOCUMENTS);
+    const req = store.delete(docId);
+    req.onsuccess = () => {
+      notifyDataChanged('delete_document', { id: docId });
+      resolve(true);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}

@@ -4,7 +4,7 @@
   "description": "Application médicale DocPocket Cab",
   "author": "DocPocket Cab",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -15,6 +15,15 @@
     "directories": {
       "output": "dist-electron"
     },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "!dist/downloads/**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin"
+    ],
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",

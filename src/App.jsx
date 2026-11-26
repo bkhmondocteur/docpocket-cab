@@ -1084,7 +1084,7 @@ export default function App() {
           userSelect: 'none'
         }}
       >
-        <span>ℹ️ v1.0.0 • Mises à jour</span>
+        <span>ℹ️ v1.0.1 • Mises à jour</span>
         <span>🔄</span>
       </div>
     </div>

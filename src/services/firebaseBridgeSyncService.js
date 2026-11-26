@@ -28,7 +28,11 @@ import {
   notifyDataChanged,
   onDataChange,
   isDemoDatabase,
-  clearDemoDataIfPresent
+  clearDemoDataIfPresent,
+  getPatientFullBundle,
+  applyIncomingPatientBundle,
+  savePatientDocument,
+  deletePatientDocument
 } from './patientStorage';
 import { getActiveLicensePartitionId, getLicenseStatus } from './licenseService';
 import { getSmsLicenseSyncPayload, autoActivateSmsOnMobile } from './smsLicenseService';
@@ -38,13 +42,19 @@ const LAST_SYNC_KEY = 'docpocket_bridge_last_sync_time';
 const DEVICE_ID_KEY = 'docpocket_bridge_device_id';
 const LAST_SIGNAL_ID_KEY = 'docpocket_bridge_last_signal_id';
 const LAST_DELTA_ID_KEY = 'docpocket_bridge_last_delta_id';
+const LAST_PATIENT_UPDATE_KEY = 'docpocket_bridge_last_patient_update';
+const LAST_HEAVY_TRANSFER_KEY = 'docpocket_bridge_last_heavy_transfer';
 
 let lastProcessedSignalId = '';
 let lastProcessedDeltaId = '';
+let lastProcessedPatientUpdate = '';
+let lastProcessedHeavyTransfer = '';
 if (typeof localStorage !== 'undefined') {
   try {
     lastProcessedSignalId = localStorage.getItem(LAST_SIGNAL_ID_KEY) || '';
     lastProcessedDeltaId = localStorage.getItem(LAST_DELTA_ID_KEY) || '';
+    lastProcessedPatientUpdate = localStorage.getItem(LAST_PATIENT_UPDATE_KEY) || '';
+    lastProcessedHeavyTransfer = localStorage.getItem(LAST_HEAVY_TRANSFER_KEY) || '';
   } catch (e) {}
 }
 
@@ -1309,10 +1319,199 @@ async function processIncomingBackupSignal(signal) {
 }
 
 // ==============================================================
-// 7. MICRO-SYNCHRONISATION DELTA INSTANTANÉE (< 2 Ko, ULTRA-FLUIDE)
-// Permet la synchronisation quasi-instantanée (1-3s) sans renvoyer
-// toute la sauvegarde ni ralentir l'appareil ou clignoter l'UI.
+// 7. MICRO-SYNCHRONISATION DELTA & GRANULAIRE PATIENT (< 5 Ko)
+// Synchronisation atomique et ultra-fluide fiche par fiche
+// Épargne 100% le quota gratuit Firebase Spark et garantit 0 lag
 // ==============================================================
+
+/**
+ * Compresse intelligemment une image médicale (radiographie, bilan, scan)
+ * afin qu'elle transite instantanément sans saturer le réseau ni le pont Firebase
+ */
+export async function compressMedicalImage(dataUrl, maxWidth = 1600, quality = 0.82) {
+  if (typeof document === 'undefined' || !dataUrl || !dataUrl.startsWith('data:image/')) {
+    return dataUrl;
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+// File d'attente debouncée pour la synchronisation granulaire patient
+const pendingPatientSyncs = new Set();
+let patientSyncTimer = null;
+
+export function queuePatientSync(patientId) {
+  if (!patientId) return;
+  pendingPatientSyncs.add(String(patientId));
+  if (patientSyncTimer) clearTimeout(patientSyncTimer);
+  patientSyncTimer = setTimeout(async () => {
+    const idsToSync = Array.from(pendingPatientSyncs);
+    pendingPatientSyncs.clear();
+    for (const pid of idsToSync) {
+      try {
+        await syncSinglePatientToBridge(pid);
+      } catch (e) {
+        console.warn(`Erreur sync granulaire patient ${pid}:`, e.message);
+      }
+    }
+  }, 400);
+}
+
+/**
+ * Synchronise un unique dossier patient avec toutes ses données rattachées
+ * (consultations, ordonnances, factures, certificats, rdv) sur le pont Firebase.
+ */
+export async function syncSinglePatientToBridge(patientId) {
+  const cfg = getFirebaseBridgeConfig();
+  if (!cfg.enabled || !patientId) return;
+
+  const bundle = await getPatientFullBundle(patientId);
+  if (!bundle || !bundle.patient) return;
+
+  const deviceId = getOrCreateDeviceId();
+  const deviceName = getDeviceDisplayName();
+  const isMobile = isMobileDevice();
+  const timestamp = Date.now();
+
+  bundle.sourceDeviceId = deviceId;
+  bundle.sourceDeviceName = deviceName;
+  bundle.isMobile = isMobile;
+
+  // 1. Enregistrer le bundle du patient sur le Cloud Firestore
+  await firebaseFetch(`patient_bundles/${patientId}`, {
+    method: 'PUT',
+    body: bundle
+  });
+
+  // 2. Mettre à jour l'aiguilleur de signal ultra-léger (< 500 octets)
+  const patientUpdateSignal = {
+    action: 'save_patient_bundle',
+    patientId: String(patientId),
+    patientName: bundle.patient.fullname || `${bundle.patient.nom || ''} ${bundle.patient.prenom || ''}`.trim(),
+    sourceDeviceId: deviceId,
+    sourceDeviceName: deviceName,
+    isMobile,
+    updatedAt: timestamp
+  };
+
+  await firebaseFetch('patient_updates/latest', {
+    method: 'PUT',
+    body: patientUpdateSignal
+  });
+
+  notifyBridgeSubscribers({
+    type: 'SYNC_COMPLETE',
+    isGranular: true,
+    patientId,
+    patientName: patientUpdateSignal.patientName,
+    message: `✓ Fiche de ${patientUpdateSignal.patientName || 'Patient'} synchronisée sur le pont.`
+  });
+}
+
+/**
+ * Diffuse la suppression d'un dossier patient sur le pont
+ */
+export async function deletePatientFromBridge(patientId) {
+  const cfg = getFirebaseBridgeConfig();
+  if (!cfg.enabled || !patientId) return;
+
+  const deviceId = getOrCreateDeviceId();
+  const deviceName = getDeviceDisplayName();
+  const timestamp = Date.now();
+
+  const signal = {
+    action: 'delete_patient',
+    patientId: String(patientId),
+    sourceDeviceId: deviceId,
+    sourceDeviceName: deviceName,
+    isMobile: isMobileDevice(),
+    updatedAt: timestamp
+  };
+
+  await firebaseFetch('patient_updates/latest', {
+    method: 'PUT',
+    body: signal
+  });
+
+  await firebaseFetch(`patient_bundles/${patientId}`, { method: 'DELETE' }).catch(() => {});
+}
+
+/**
+ * Transmet un fichier lourd (radiographie, compte-rendu, analyse biologique, scan)
+ * via le pont éphémère Firebase : le fichier transite et est immédiatement supprimé
+ * du Cloud dès sa réception par l'autre appareil, conservant l'espace Cloud à ~0 Mo.
+ */
+export async function transmitHeavyFileViaBridge(doc) {
+  const cfg = getFirebaseBridgeConfig();
+  if (!cfg.enabled || !doc || !doc.dataUrl) return;
+
+  const deviceId = getOrCreateDeviceId();
+  const fileId = doc.id || `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  // Compresser si image
+  const readyDataUrl = await compressMedicalImage(doc.dataUrl);
+
+  const transferPayload = {
+    fileId,
+    patientId: String(doc.patientId),
+    name: doc.name || 'Document médical',
+    type: doc.type || 'image/jpeg',
+    date: doc.date || new Date().toISOString().slice(0, 10),
+    dataUrl: readyDataUrl,
+    timestamp: Date.now(),
+    sourceDeviceId: deviceId,
+    sourceDeviceName: getDeviceDisplayName(),
+    isMobile: isMobileDevice()
+  };
+
+  // 1. Mettre le document dans le pont éphémère Firestore
+  await firebaseFetch(`heavy_transfers/${fileId}`, {
+    method: 'PUT',
+    body: transferPayload
+  });
+
+  // 2. Émettre le signal léger
+  const signal = {
+    type: 'HEAVY_FILE_AVAILABLE',
+    fileId,
+    patientId: String(doc.patientId),
+    name: doc.name || 'Document médical',
+    type: doc.type,
+    date: doc.date,
+    timestamp: Date.now(),
+    sourceDeviceId: deviceId,
+    sourceDeviceName: getDeviceDisplayName(),
+    isMobile: isMobileDevice()
+  };
+
+  await firebaseFetch('heavy_transfers/latest', {
+    method: 'PUT',
+    body: signal
+  });
+
+  notifyBridgeSubscribers({
+    type: 'HEAVY_FILE_SENT',
+    fileName: doc.name,
+    message: `✓ Fichier lourd "${doc.name}" transmis via le pont de synchronisation.`
+  });
+}
 
 /**
  * Diffuse immédiatement une modification atomique vers le pont Firebase
@@ -1541,6 +1740,42 @@ export function initBridgeDeltaSync() {
     const cfg = getFirebaseBridgeConfig();
     if (!cfg.enabled) return;
 
+    // 1. Synchronisation granulaire patient (immédiate et groupée par patient)
+    if (action === 'save_patient') {
+      const pid = details.id || details.data?.id;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'delete_patient') {
+      const pid = details.id || details.data?.id;
+      if (pid) deletePatientFromBridge(pid);
+    } else if (action === 'save_consultation') {
+      const pid = details.patientId || details.data?.patientId;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'delete_consultation') {
+      const pid = details.patientId || details.data?.patientId;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'save_prescription') {
+      const pid = details.data?.patientId;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'delete_prescription') {
+      const pid = details.data?.patientId;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'save_invoice') {
+      const pid = details.data?.patientId;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'delete_invoice') {
+      const pid = details.data?.patientId;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'save_certificate') {
+      const pid = details.data?.patientId;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'delete_certificate') {
+      const pid = details.data?.patientId;
+      if (pid) queuePatientSync(pid);
+    } else if (action === 'save_document') {
+      if (details.data) transmitHeavyFileViaBridge(details.data);
+    }
+
+    // 2. Micro-delta pour les autres entités (agenda, etc.)
     if (action.startsWith('save_') || action.startsWith('delete_')) {
       const entityType = action.replace('save_', '').replace('delete_', '');
       const data = details?.data || details?.patient || details?.certificate || { id: details?.id };
@@ -1552,22 +1787,102 @@ export function initBridgeDeltaSync() {
 let isCheckingSignal = false;
 
 /**
- * Vérifie périodiquement s'il y a un nouveau signal (très léger, 1 seul appel JSON)
+ * Vérifie périodiquement s'il y a un nouveau signal (granulaire, pont éphémère ou delta)
  */
 async function checkBridgeSignal() {
   const cfg = getFirebaseBridgeConfig();
   if (!cfg.enabled || isCheckingSignal) return;
 
   isCheckingSignal = true;
+  const myDeviceId = getOrCreateDeviceId();
+
   try {
-    const [latestDelta, latestSignal] = await Promise.all([
+    const [latestPatientUpdate, latestHeavySignal, latestDelta, latestSignal] = await Promise.all([
+      firebaseFetch('patient_updates/latest').catch(() => null),
+      firebaseFetch('heavy_transfers/latest').catch(() => null),
       firebaseFetch('delta/latest').catch(() => null),
       firebaseFetch('signals/latest').catch(() => null)
     ]);
 
+    // 1. Synchronisation granulaire d'une unique fiche patient
+    if (latestPatientUpdate && latestPatientUpdate.updatedAt && latestPatientUpdate.sourceDeviceId !== myDeviceId) {
+      const updateId = `${latestPatientUpdate.patientId}_${latestPatientUpdate.updatedAt}`;
+      if (updateId !== lastProcessedPatientUpdate) {
+        lastProcessedPatientUpdate = updateId;
+        try { localStorage.setItem(LAST_PATIENT_UPDATE_KEY, updateId); } catch (e) {}
+
+        if (latestPatientUpdate.action === 'delete_patient') {
+          setSyncImporting(true);
+          try {
+            await deletePatientById(latestPatientUpdate.patientId);
+          } finally {
+            setSyncImporting(false);
+          }
+        } else {
+          const incomingBundle = await firebaseFetch(`patient_bundles/${latestPatientUpdate.patientId}`);
+          if (incomingBundle) {
+            await applyIncomingPatientBundle(incomingBundle);
+            notifyBridgeSubscribers({
+              type: 'SYNC_COMPLETE',
+              isGranular: true,
+              patientId: latestPatientUpdate.patientId,
+              message: `✓ Fiche de ${latestPatientUpdate.patientName || 'Patient'} synchronisée en direct !`
+            });
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('docpocket_patient_synced', {
+                detail: { patientId: latestPatientUpdate.patientId }
+              }));
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Pont éphémère de fichier lourd (radiographies, bilans, scans)
+    if (latestHeavySignal && latestHeavySignal.timestamp && latestHeavySignal.sourceDeviceId !== myDeviceId) {
+      const transferId = `${latestHeavySignal.fileId}_${latestHeavySignal.timestamp}`;
+      if (transferId !== lastProcessedHeavyTransfer) {
+        lastProcessedHeavyTransfer = transferId;
+        try { localStorage.setItem(LAST_HEAVY_TRANSFER_KEY, transferId); } catch (e) {}
+
+        const heavyDoc = await firebaseFetch(`heavy_transfers/${latestHeavySignal.fileId}`);
+        if (heavyDoc && heavyDoc.dataUrl) {
+          // Sauvegarder dans la base locale permanente DocPocketFilesDB
+          await savePatientDocument({
+            id: heavyDoc.fileId,
+            patientId: heavyDoc.patientId,
+            name: heavyDoc.name,
+            type: heavyDoc.type,
+            date: heavyDoc.date,
+            dataUrl: heavyDoc.dataUrl
+          });
+
+          // SUPPRIMER IMMÉDIATEMENT DU CLOUD FIREBASE (PONT ÉPHÉMÈRE)
+          await firebaseFetch(`heavy_transfers/${latestHeavySignal.fileId}`, { method: 'DELETE' }).catch(() => {});
+
+          notifyBridgeSubscribers({
+            type: 'HEAVY_FILE_RECEIVED',
+            fileId: heavyDoc.fileId,
+            patientId: heavyDoc.patientId,
+            fileName: heavyDoc.name,
+            message: `✓ Fichier médical "${heavyDoc.name}" reçu et enregistré en local (espace Cloud libéré).`
+          });
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('docpocket_document_synced', {
+              detail: { patientId: heavyDoc.patientId, fileId: heavyDoc.fileId }
+            }));
+          }
+        }
+      }
+    }
+
+    // 3. Micro-delta rapide (rendez-vous d'agenda, etc.)
     if (latestDelta) {
       await handleIncomingDelta(latestDelta);
     }
+
+    // 4. Signal global de sauvegarde complète (initialisation ou demande manuelle)
     if (latestSignal) {
       await handleIncomingSignal(latestSignal);
     }
