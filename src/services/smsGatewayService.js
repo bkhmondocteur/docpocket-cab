@@ -31,8 +31,23 @@ export function setGatewayUrl(url) {
 
 /**
  * Récupère l'état et l'identifiant FCM du smartphone Android (Infinix) enregistré dans Firestore
+ * Avec mise en cache intelligente (3 minutes) pour préserver le forfait gratuit Firebase Spark
  */
-export async function fetchDoctorDeviceStatus() {
+export async function fetchDoctorDeviceStatus(forceRefresh = false) {
+  // Vérification du cache récent pour éviter les requêtes Firestore redondantes
+  if (!forceRefresh) {
+    try {
+      const cached = localStorage.getItem(DOCTOR_DEVICE_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const age = Date.now() - (parsed.fetchedAt || 0);
+        if (age < 180000 && parsed.connected) { // 3 minutes
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+
   try {
     const url = `${CLOUD_CONFIG.firestoreBase}/devices/doctor_device?key=${CLOUD_CONFIG.apiKey}`;
     const controller = new AbortController();
@@ -202,6 +217,52 @@ export async function fetchCloudAppointments() {
 }
 
 /**
+ * Supprime une instruction de rendez-vous de la base Cloud Firestore docpocket-rdv
+ * (Pont Éphémère : nettoie les instructions terminées pour garder le Cloud à 0 Mo)
+ */
+export async function deleteCloudAppointment(docId) {
+  try {
+    if (!docId) return false;
+    const cleanId = String(docId).split('/').pop();
+    const url = `${CLOUD_CONFIG.firestoreBase}/rendezvous/${cleanId}?key=${CLOUD_CONFIG.apiKey}`;
+    const res = await fetch(url, { method: 'DELETE' });
+    if (res.ok) {
+      console.log(`✓ Instruction éphémère purgée du Cloud docpocket-rdv : ${cleanId}`);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn("Échec suppression Firestore docpocket-rdv :", e.message);
+    return false;
+  }
+}
+
+/**
+ * Purge en masse les instructions de rendez-vous déjà envoyées par SMS (smsEnvoye === true)
+ * Maintient le quota Firestore Spark gratuit et évite l'accumulation inutile de données dans le Cloud.
+ */
+export async function purgeSentCloudAppointments(appointments = []) {
+  try {
+    const sentItems = appointments.filter(a => a.smsEnvoye === true);
+    let successCount = 0;
+    for (const item of sentItems) {
+      if (item.id) {
+        const ok = await deleteCloudAppointment(item.id);
+        if (ok) successCount++;
+      }
+    }
+    return {
+      total: sentItems.length,
+      purged: successCount,
+      success: true
+    };
+  } catch (e) {
+    console.error("Erreur purge Cloud DocPocket SMS RDV :", e);
+    return { total: 0, purged: 0, success: false, error: e.message };
+  }
+}
+
+/**
  * Récupère la file d'attente locale des rendez-vous
  */
 export function getTransmittedAppointmentsQueue() {
@@ -367,8 +428,8 @@ export async function transmitAppointmentToMobile(appointment, options = {}) {
   const language = appointment.language || 'fr';
   const texteSms = appointment.texteSms || buildSmsText(nomPatient, dateRdv, heureRdv, doctorName, language);
   
-  // Si forceImmediate : horodatage immédiat pour envoi direct sans délai 48h
-  const reminderTimestamp = forceImmediate ? Date.now() : calculateReminderEpochMs(dateRdv, heureRdv);
+  // Si forceImmediate : horodatage immédiat dans le passé pour déclenchement FCM sans délai
+  const reminderTimestamp = forceImmediate ? (Date.now() - 5000) : calculateReminderEpochMs(dateRdv, heureRdv);
 
   let cloudSuccess = false;
   let cloudDocId = null;
@@ -475,25 +536,25 @@ export async function transmitAppointmentToMobile(appointment, options = {}) {
 }
 
 /**
- * Déclenche un envoi SMS immédiat via le smartphone Android
+ * Déclenche un envoi SMS immédiat via le smartphone Android (Infinix)
+ * Transmet l'instruction au pont éphémère Firestore et réveille l'app via Vercel Cron
  */
 export async function triggerInstantSmsPush(appointment) {
   try {
     const res = await transmitAppointmentToMobile({
       ...appointment,
-      // Date/heure actuelles pour forcer le déclenchement immédiat
-      rdvDate: appointment.dateRdv || new Date().toISOString().slice(0, 10),
-      rdvTime: appointment.heureRdv || '10:00'
-    });
-
-    // Appel direct au cron Vercel pour expédier immédiatement
-    const cronRes = await fetch(CLOUD_CONFIG.cronUrl);
-    const cronData = await cronRes.json();
+      rdvDate: appointment.dateRdv || appointment.rdvDate || new Date().toISOString().slice(0, 10),
+      rdvTime: appointment.heureRdv || appointment.rdvTime || '10:00'
+    }, { forceImmediate: true });
 
     return {
-      success: true,
-      cronData,
-      message: "Signal de réveil et ordre d'envoi SMS transmis à votre smartphone Infinix !"
+      success: res.success,
+      cloudDocId: res.cloudDocId,
+      cronResult: res.cronResult,
+      deviceModel: res.deviceModel,
+      message: res.cloudSuccess
+        ? `✓ Ordre SMS transmis avec succès ! Le réveil a été expédié à votre smartphone Infinix.`
+        : (res.message || "Ordre SMS enregistré en local.")
     };
   } catch (e) {
     return {

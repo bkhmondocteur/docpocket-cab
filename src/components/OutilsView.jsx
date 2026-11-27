@@ -37,6 +37,8 @@ import {
   triggerInstantSmsPush,
   checkAndSyncCloudLicense,
   broadcastLicenseToCloud,
+  deleteCloudAppointment,
+  purgeSentCloudAppointments,
   CLOUD_CONFIG
 } from '../services/smsGatewayService';
 
@@ -1583,6 +1585,8 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
   const [cloudAppointments, setCloudAppointments] = useState([]);
   const [loadingCloud, setLoadingCloud] = useState(false);
   const [instantSending, setInstantSending] = useState(false);
+  const [purgingCloud, setPurgingCloud] = useState(false);
+  const [autoPurgeSent, setAutoPurgeSent] = useState(() => localStorage.getItem('docpocket_sms_autopurge') === 'true');
 
   // File d'attente des RDV transmis depuis DocPocket Cab
   const [transmittedQueue, setTransmittedQueue] = useState(() => getTransmittedAppointmentsQueue());
@@ -1599,12 +1603,12 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
   const [langue, setLangue] = useState('fr'); // 'fr' | 'ar' | 'en'
   const [history, setHistory] = useState(() => getSmsHistory());
 
-  // Chargement des données Cloud Firestore (docpocket-rdv) & Smartphone
-  const loadCloudData = async () => {
+  // Chargement optimisé des données Cloud Firestore (docpocket-rdv) & Smartphone
+  const loadCloudData = async (force = false) => {
     setLoadingCloud(true);
     try {
       const [dev, appts, syncRes] = await Promise.all([
-        fetchDoctorDeviceStatus(),
+        fetchDoctorDeviceStatus(force),
         fetchCloudAppointments(),
         checkAndSyncCloudLicense()
       ]);
@@ -1615,6 +1619,18 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
         setSmsLicense(getSmsLicenseStatus());
         onNotify(`✓ Signal Firebase reçu : Activé sur ${syncRes.deviceModel} -> DocPocket Cab activé !`);
       }
+
+      // Auto-nettoyage éphémère si actif : purge en arrière-plan les instructions exécutées par la SIM
+      if (localStorage.getItem('docpocket_sms_autopurge') === 'true' && appts?.length > 0) {
+        const sentItems = appts.filter(a => a.smsEnvoye === true);
+        if (sentItems.length > 0) {
+          purgeSentCloudAppointments(sentItems).then(res => {
+            if (res.purged > 0) {
+              console.log(`✓ Pont éphémère auto-nettoyé : ${res.purged} RDV traité(s) supprimé(s) du Cloud docpocket-rdv`);
+            }
+          });
+        }
+      }
     } catch (e) {
       console.warn("Erreur chargement Cloud DocPocket SMS RDV:", e);
     } finally {
@@ -1624,7 +1640,11 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
 
   useEffect(() => {
     loadCloudData();
-    const interval = setInterval(loadCloudData, 25000);
+    // Rafraîchissement périodique léger uniquement si la fenêtre est active
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      loadCloudData();
+    }, 45000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1635,14 +1655,67 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
       const res = await triggerInstantSmsPush(item);
       if (res.success) {
         onNotify('✓ Signal de réveil envoyé à votre smartphone Infinix ! SMS en cours d\'envoi.');
-        setTimeout(loadCloudData, 2000);
+        setTimeout(() => loadCloudData(true), 2500);
       } else {
-        alert("Erreur transmission push : " + (res.error || 'Erreur inconnue'));
+        alert("Erreur transmission push : " + (res.error || res.message || 'Erreur inconnue'));
       }
     } catch (e) {
       alert("Erreur : " + e.message);
     } finally {
       setInstantSending(false);
+    }
+  };
+
+  // Bascule du mode auto-nettoyage éphémère
+  const handleToggleAutoPurge = () => {
+    const nextVal = !autoPurgeSent;
+    setAutoPurgeSent(nextVal);
+    localStorage.setItem('docpocket_sms_autopurge', String(nextVal));
+    if (nextVal) {
+      onNotify('✓ Nettoyage éphémère automatique activé (0 Mo Cloud)');
+    } else {
+      onNotify('Nettoyage éphémère automatique désactivé');
+    }
+  };
+
+  // Purge manuelle des rendez-vous traités
+  const handlePurgeSentCloud = async () => {
+    const sentCount = cloudAppointments.filter(a => a.smsEnvoye).length;
+    if (sentCount === 0) {
+      onNotify('Aucun SMS traité à purger du Cloud.');
+      return;
+    }
+    setPurgingCloud(true);
+    try {
+      const res = await purgeSentCloudAppointments(cloudAppointments);
+      if (res.purged > 0) {
+        onNotify(`✓ Pont éphémère nettoyé : ${res.purged} instruction(s) purgée(s) du Cloud (0 Mo restant).`);
+        await loadCloudData(true);
+      } else {
+        onNotify('Aucun élément purgé.');
+      }
+    } catch (e) {
+      alert("Erreur purge Cloud : " + e.message);
+    } finally {
+      setPurgingCloud(false);
+    }
+  };
+
+  // Suppression unitaire d'un document Firestore
+  const handleDeleteCloudDoc = async (docId, patientName) => {
+    if (!window.confirm(`Retirer l'instruction Cloud pour ${patientName || 'ce rendez-vous'} ?\n\n(L'historique et la fiche patient restent intégralement conservés en local)`)) {
+      return;
+    }
+    try {
+      const ok = await deleteCloudAppointment(docId);
+      if (ok) {
+        onNotify('✓ Instruction retirée du Cloud');
+        await loadCloudData(true);
+      } else {
+        alert("Impossible de retirer ce document du Cloud.");
+      }
+    } catch (e) {
+      alert("Erreur suppression : " + e.message);
     }
   };
 
@@ -1669,12 +1742,6 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
     const online = await testGatewayConnection();
     setGatewayOnline(online);
   };
-
-  useEffect(() => {
-    checkGateway();
-    const interval = setInterval(checkGateway, 15000);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (patient) {
@@ -2553,7 +2620,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
         </button>
       </div>
 
-      {/* CONTENU SOUS-ONGLET 1 : FILE D'ATTENTE & CLOUD RDV */}
+      {/* CONTENU SOUS-ONGLET 1 : FILE D'ATTENTE & CLOUD RDV (PONT ÉPHÉMÈRE) */}
       {activeSubTab === 'queue' && (
         <div style={{
           background: '#131d36',
@@ -2561,34 +2628,95 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
           padding: '20px',
           border: '1px solid rgba(255, 255, 255, 0.08)'
         }}>
-          {/* Bannière récapitulative passerelle Infinix */}
+          {/* Bannière récapitulative passerelle Infinix & Pont Éphémère */}
           <div style={{
             background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%)',
             border: '1px solid rgba(56, 189, 248, 0.25)',
             borderRadius: '10px',
-            padding: '14px 18px',
+            padding: '16px 18px',
             marginBottom: '18px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '12px'
+            gap: '14px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ fontSize: '2rem' }}>📱</div>
+              <div style={{ fontSize: '2.2rem' }}>📱</div>
               <div>
-                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>
-                  Passerelle SIM : {deviceInfo?.deviceModel || 'INFINIX Infinix X6726B'} (Android {deviceInfo?.androidVersion || '15'})
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc' }}>
+                    Passerelle SIM : {deviceInfo?.deviceModel || 'INFINIX Infinix X6726B'} (Android {deviceInfo?.androidVersion || '15'})
+                  </span>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    fontWeight: 600
+                  }}>
+                    ⚡ Pont Éphémère (0 Mo Cloud)
+                  </span>
                 </div>
-                <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
-                  Médecin : <strong style={{ color: '#38bdf8' }}>{deviceInfo?.doctorName || CLOUD_CONFIG.defaultDoctorName}</strong> • Cloud Firebase : <span style={{ color: '#4ade80' }}>docpocket-rdv (En ligne)</span> • Vercel Cron : <span style={{ color: '#4ade80' }}>Actif</span>
+                <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px' }}>
+                  Médecin : <strong style={{ color: '#38bdf8' }}>{deviceInfo?.doctorName || CLOUD_CONFIG.defaultDoctorName}</strong> • Cloud Firebase : <span style={{ color: '#4ade80' }}>docpocket-rdv (En ligne)</span> • Vercel Cron : <span style={{ color: '#4ade80' }}>Prêt</span>
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 type="button"
-                onClick={loadCloudData}
+                onClick={handleToggleAutoPurge}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: '6px',
+                  background: autoPurgeSent ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                  border: autoPurgeSent ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
+                  color: autoPurgeSent ? '#4ade80' : '#cbd5e1',
+                  fontSize: '0.76rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="Supprime automatiquement du Cloud chaque SMS une fois exécuté par le smartphone afin de garder 0 Mo de stockage"
+              >
+                <span>{autoPurgeSent ? '⚡' : '⚪'}</span>
+                <span>Auto-purge : {autoPurgeSent ? 'Active (0 Mo)' : 'Inactif'}</span>
+              </button>
+
+              {cloudAppointments.some(a => a.smsEnvoye) && (
+                <button
+                  type="button"
+                  onClick={handlePurgeSentCloud}
+                  disabled={purgingCloud}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: '6px',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#f87171',
+                    fontSize: '0.76rem',
+                    fontWeight: 600,
+                    cursor: purgingCloud ? 'wait' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Nettoyer les instructions déjà expédiées par SMS du Cloud pour libérer les quotas Firebase"
+                >
+                  <span>{purgingCloud ? '⏳' : '🧹'}</span>
+                  <span>{purgingCloud ? 'Nettoyage...' : `Purger traités (${cloudAppointments.filter(a => a.smsEnvoye).length})`}</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => loadCloudData(true)}
                 disabled={loadingCloud}
                 style={{
                   padding: '7px 14px',
@@ -2601,7 +2729,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
                   cursor: loadingCloud ? 'not-allowed' : 'pointer'
                 }}
               >
-                {loadingCloud ? '⏳ Synchronisation...' : '🔄 Synchroniser avec le Cloud'}
+                {loadingCloud ? '⏳ Synchronisation...' : '🔄 Actualiser'}
               </button>
             </div>
           </div>
@@ -2609,15 +2737,25 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', fontWeight: 700 }}>
-                📥 Rendez-vous Transmis & Programmés pour Rappel SMS
+                📥 Instructions RDV Transmises au Smartphone (Pont Éphémère)
               </h3>
               <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
-                Synchronisés directement avec l'application Android DocPocket SMS RDV sur votre smartphone
+                L'historique complet reste sauvegardé localement. Le Cloud transmet uniquement les ordres d'envoi à exécuter par votre téléphone.
               </p>
             </div>
-            <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-              Total : <strong style={{ color: '#38bdf8' }}>{mergedAppointments.length}</strong> rendez-vous
-            </span>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.78rem' }}>
+              <span style={{ color: '#fbbf24' }}>
+                En transit : <strong>{cloudAppointments.filter(a => !a.smsEnvoye).length}</strong>
+              </span>
+              <span style={{ color: '#94a3b8' }}>|</span>
+              <span style={{ color: '#4ade80' }}>
+                Exécutés : <strong>{cloudAppointments.filter(a => a.smsEnvoye).length}</strong>
+              </span>
+              <span style={{ color: '#94a3b8' }}>|</span>
+              <span style={{ color: '#38bdf8' }}>
+                Total affiché : <strong>{mergedAppointments.length}</strong>
+              </span>
+            </div>
           </div>
 
           {mergedAppointments.length === 0 ? (
@@ -2631,9 +2769,9 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
               border: '1px dashed #334155'
             }}>
               <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📅</div>
-              <strong>Aucun rendez-vous enregistré pour le moment.</strong>
+              <strong>Aucun rendez-vous dans la file du pont éphémère.</strong>
               <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '6px' }}>
-                Lorsque vous fixez un rendez-vous dans l'Agenda de DocPocket Cab avec l'option rappel cochée, il apparaîtra automatiquement ici et sera envoyé par la SIM de votre téléphone !
+                Lorsque vous créez un rendez-vous dans l'Agenda de DocPocket Cab avec l'option rappel cochée, l'instruction d'envoi est transmise ici et exécutée par la SIM de votre smartphone !
               </div>
             </div>
           ) : (
@@ -2671,7 +2809,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
                           fontWeight: 700,
                           border: isSent ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)'
                         }}>
-                          {isSent ? `✓ Expédié par carte SIM (${deviceInfo?.deviceModel?.includes('Infinix') ? 'Infinix' : 'Smartphone'})` : '⏳ Rappel 48h programmé (Cloud)'}
+                          {isSent ? `✓ Expédié par carte SIM (${deviceInfo?.deviceModel?.includes('Infinix') ? 'Infinix' : 'Smartphone'})` : '⏳ En attente d\'exécution SIM (Pont Éphémère)'}
                         </span>
                         {item.source === 'docpocket_cab' && (
                           <span style={{ fontSize: '0.68rem', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
@@ -2684,7 +2822,7 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
                       </div>
                       {reminderDateStr && !isSent && (
                         <div style={{ fontSize: '0.74rem', color: '#fbbf24', marginTop: '3px' }}>
-                          ⏰ Date de déclenchement du rappel : {reminderDateStr}
+                          ⏰ Échéance du rappel SMS : {reminderDateStr}
                         </div>
                       )}
                       {item.texteSms && (
@@ -2729,6 +2867,27 @@ function DocPocketSmsModule({ patient, allPatients, onNotify }) {
                           ⚡ Déclencher Envoi Immédiat (SIM)
                         </button>
                       )}
+
+                      {item.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCloudDoc(item.id, patientName)}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            color: '#f87171',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                          title="Supprimer cette instruction du Cloud Firestore pour préserver les quotas (l'historique local reste intact)"
+                        >
+                          🗑️ Retirer du Cloud
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => handleCopyQueuedSms(item)}
