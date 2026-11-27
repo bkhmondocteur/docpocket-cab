@@ -550,11 +550,20 @@ export async function transmitAppointmentToMobile(appointment, options = {}) {
   let cronResult = null;
   if (isImmediate) {
     try {
-      const cRes = await fetch(CLOUD_CONFIG.cronUrl);
-      cronResult = await cRes.json();
-      console.log("✓ Vercel Cron déclenché avec succès :", cronResult);
+      const cRes = await fetch(CLOUD_CONFIG.cronUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (cRes.ok) {
+        cronResult = await cRes.json();
+        console.log("✓ Vercel Cron déclenché avec succès :", cronResult);
+      }
     } catch (cErr) {
       console.warn("Avertissement appel Cron Vercel :", cErr.message);
+      // Déclenchement de secours en mode no-cors pour garantir le réveil Vercel sans exception réseau
+      try {
+        await fetch(CLOUD_CONFIG.cronUrl, { method: 'GET', mode: 'no-cors' });
+      } catch {}
     }
   }
 
@@ -617,14 +626,15 @@ export async function triggerInstantSmsPush(appointment) {
       rdvTime: appointment.heureRdv || appointment.rdvTime || '10:00'
     }, { forceImmediate: true });
 
+    const isOk = Boolean(res && (res.cloudSuccess || res.success));
     return {
-      success: res.success,
-      cloudDocId: res.cloudDocId,
-      cronResult: res.cronResult,
-      deviceModel: res.deviceModel,
-      message: res.cloudSuccess
+      success: isOk,
+      cloudDocId: res?.cloudDocId,
+      cronResult: res?.cronResult,
+      deviceModel: res?.deviceModel,
+      message: isOk
         ? `✓ Ordre SMS transmis avec succès ! Le réveil a été expédié à votre smartphone Infinix.`
-        : (res.message || "Ordre SMS enregistré en local.")
+        : (res?.message || "Ordre SMS enregistré en local.")
     };
   } catch (e) {
     return {
