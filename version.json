@@ -1,0 +1,13 @@
+{
+  "name": "DocPocket Cab",
+  "fullName": "DocPocket Cabinet Médical",
+  "version": "1.0.1",
+  "versionName": "1.0.1",
+  "versionCode": 10001,
+  "releaseDate": "2026-11-26",
+  "author": "Dr. Hamed BEN KHALIFA",
+  "changelog": "• Synchronisation granulaire patient-par-patient ultra-fluide et instantanée sans renvoyer toute la base.\n• Pont éphémère pour fichiers lourds (analyses biologiques, radiographies, scanners, comptes-rendus PDF) stockés définitivement en local et purgés immédiatement du Cloud Firebase (espace Cloud à 0 Mo).\n• Nouvelle section de gestion des documents cliniques et résultats d'examens dans le dossier patient avec prévisualisation et zoom.\n• Sauvegarde automatique dans le dossier patient dès l'impression d'un examen biologique ou radiologique.\n• Bouton direct d'Éditeur de Modèles d'ordonnances et de documents cliniques.\n• Installateur Windows officiel avec logo de l'application et package Android autonome.",
+  "downloadApkUrl": "https://github.com/bkhmondocteur/docpocket-cab/releases/download/v1.0.1/DocPocket-Cab.apk",
+  "downloadExeUrl": "https://github.com/bkhmondocteur/docpocket-cab/releases/download/v1.0.1/DocPocket-Cab-Setup.exe",
+  "githubReleaseUrl": "https://github.com/bkhmondocteur/docpocket-cab/releases/tag/v1.0.1"
+}
