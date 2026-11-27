@@ -12,6 +12,7 @@ import { triggerImmediateAutoBackup } from '../services/autoBackupService';
 import { 
   transmitAppointmentToMobile, 
   testGatewayConnection,
+  checkAndSyncCloudLicense,
   getGatewayUrl,
   setGatewayUrl
 } from '../services/smsGatewayService';
@@ -67,7 +68,18 @@ export default function AgendaView({
 
   useEffect(() => {
     checkGateway();
-    const interval = setInterval(checkGateway, 15000);
+    // Synchronisation automatique et transparente de la licence depuis le Cloud
+    checkAndSyncCloudLicense().then(res => {
+      if (res?.autoActivated || res?.alreadyActive) {
+        setSmsActive(isSmsRdvActivated());
+        setSmsLicenseInfo(getSmsLicenseStatus());
+      }
+    }).catch(() => {});
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      checkGateway();
+    }, 45000);
 
     const handleSmsLicenseChange = () => {
       setSmsActive(isSmsRdvActivated());
@@ -131,6 +143,8 @@ export default function AgendaView({
       });
       setSearchPatient('');
       setPatientError(false);
+      setSendSmsReminder(true);
+      setSendImmediateSms(false);
       setShowModal(true);
     }
   }, [initialPatient]);
@@ -148,6 +162,7 @@ export default function AgendaView({
     });
     setSearchPatient('');
     setPatientError(false);
+    setSendSmsReminder(true);
     setSendImmediateSms(false);
     setShowModal(true);
   };

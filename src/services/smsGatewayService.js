@@ -463,7 +463,16 @@ export function calculateReminderEpochMs(dateRdv, heureRdv) {
  * Si non activé : le rendez-vous reste dans DocPocket Cab uniquement.
  */
 export async function transmitAppointmentToMobile(appointment, options = {}) {
-  // 1. VÉRIFICATION STRICTE DE LA LICENCE DOCPOCKET SMS RDV
+  // 1. VÉRIFICATION STRICTE DE LA LICENCE DOCPOCKET SMS RDV (Avec synchronisation Cloud automatique si smartphone activé)
+  if (!isSmsRdvActivated()) {
+    try {
+      const syncRes = await checkAndSyncCloudLicense();
+      if (syncRes?.autoActivated || syncRes?.alreadyActive) {
+        console.log("✓ Licence DocPocket SMS RDV synchronisée automatiquement depuis le Cloud.");
+      }
+    } catch {}
+  }
+
   if (!isSmsRdvActivated()) {
     console.info("ℹ️ DocPocket SMS RDV non activé : le rendez-vous reste dans DocPocket Cab uniquement.");
     return {
