@@ -4,7 +4,8 @@
 // & LE CLOUD FIREBASE (docpocket-rdv) + API VERCEL CRON
 // ==============================================================
 
-import { isSmsRdvActivated, getSmsLicenseStatus, activateSmsLicense } from './smsLicenseService.js';
+import { isSmsRdvActivated, getSmsLicenseStatus, activateSmsLicense, deactivateSmsLicense } from './smsLicenseService.js';
+import { getActivePractitioner } from './practitionerService.js';
 
 // Configuration officielle du projet Cloud DocPocket SMS RDV
 export const CLOUD_CONFIG = {
@@ -12,13 +13,47 @@ export const CLOUD_CONFIG = {
   apiKey: 'AIzaSyBHfojIB8BfwbJpbpwLJMm2RhGKmUnS8M4',
   cronUrl: 'https://docpocket-sms-rdv.vercel.app/api/cron',
   firestoreBase: 'https://firestore.googleapis.com/v1/projects/docpocket-rdv/databases/(default)/documents',
-  defaultDoctorId: 'dr_hamed_ben_khalifa',
-  defaultDoctorName: 'DR HAMED BEN KHALIFA'
+  defaultDoctorId: 'hamed_ben_khalifa',
+  defaultDoctorName: 'Hamed BEN KHALIFA'
 };
 
 const DEFAULT_LOCAL_GATEWAY_URL = 'http://localhost:3000/api/appointments';
 const SMS_QUEUE_STORAGE_KEY = 'docpocket_sms_rdv_queue';
 const DOCTOR_DEVICE_CACHE_KEY = 'docpocket_sms_doctor_device';
+
+export function cleanDoctorDisplayName(rawName) {
+  return String(rawName || '').trim().replace(/^(docteur|dr\.?)\s+/i, '').trim() || CLOUD_CONFIG.defaultDoctorName;
+}
+
+export function cleanDoctorId(rawName) {
+  const clean = cleanDoctorDisplayName(rawName)
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return clean || CLOUD_CONFIG.defaultDoctorId;
+}
+
+function getTargetDoctorProfile() {
+  try {
+    const p = getActivePractitioner();
+    if (p && (p.nom || p.prenom)) {
+      const fullName = cleanDoctorDisplayName(`${p.prenom || ''} ${p.nom || ''}`);
+      return { doctorId: cleanDoctorId(fullName), doctorName: fullName };
+    }
+  } catch {}
+  return { doctorId: CLOUD_CONFIG.defaultDoctorId, doctorName: CLOUD_CONFIG.defaultDoctorName };
+}
+
+function formatDateDdMmYyyy(dateStr) {
+  if (!dateStr) return '';
+  const clean = String(dateStr).trim();
+  const iso = clean.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (iso) {
+    return `${iso[3].padStart(2, '0')}/${iso[2].padStart(2, '0')}/${iso[1]}`;
+  }
+  return clean;
+}
 
 // Récupère ou enregistre l'URL du serveur passerelle local
 export function getGatewayUrl() {
@@ -30,18 +65,20 @@ export function setGatewayUrl(url) {
 }
 
 /**
- * Récupère l'état et l'identifiant FCM du smartphone Android (Infinix) enregistré dans Firestore
- * Avec mise en cache intelligente (3 minutes) pour préserver le forfait gratuit Firebase Spark
+ * Récupère l'état et l'identifiant FCM du smartphone Android enregistré dans Firestore
+ * Avec cache court (60s) et lecture unifiée sur devices/{doctorId} (sans doc parasite doctor_device).
  */
 export async function fetchDoctorDeviceStatus(forceRefresh = false) {
-  // Vérification du cache récent pour éviter les requêtes Firestore redondantes
+  const target = getTargetDoctorProfile();
+
   if (!forceRefresh) {
     try {
       const cached = localStorage.getItem(DOCTOR_DEVICE_CACHE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
         const age = Date.now() - (parsed.fetchedAt || 0);
-        if (age < 180000 && parsed.connected) { // 3 minutes
+        // Invalider immédiatement tout cache obsolète utilisant l'ancien ID dr_hamed_ben_khalifa
+        if (parsed.doctorId === target.doctorId && age < 60000 && parsed.connected && parsed.fcmToken) {
           return parsed;
         }
       }
@@ -49,28 +86,47 @@ export async function fetchDoctorDeviceStatus(forceRefresh = false) {
   }
 
   try {
-    const url = `${CLOUD_CONFIG.firestoreBase}/devices/doctor_device?key=${CLOUD_CONFIG.apiKey}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(url, { signal: controller.signal });
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    let data = null;
+    const directUrl = `${CLOUD_CONFIG.firestoreBase}/devices/${encodeURIComponent(target.doctorId)}?key=${CLOUD_CONFIG.apiKey}`;
+    const res = await fetch(directUrl, { signal: controller.signal });
+
+    if (res.ok) {
+      data = await res.json();
+    } else {
+      // Fallback : lister devices et trouver le profil correspondant
+      const listRes = await fetch(`${CLOUD_CONFIG.firestoreBase}/devices?pageSize=50&key=${CLOUD_CONFIG.apiKey}`, { signal: controller.signal });
+      if (listRes.ok) {
+        const listJson = await listRes.json();
+        const docs = listJson.documents || [];
+        data = docs.find(d => d.name.endsWith('/' + target.doctorId))
+          || docs.find(d => cleanDoctorId(d.fields?.doctorName?.stringValue || '') === target.doctorId)
+          || docs[0]
+          || null;
+      }
+    }
     clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      throw new Error(`Erreur Firestore devices: HTTP ${res.status}`);
+    if (!data || !data.fields) {
+      throw new Error('Aucun appareil enregistré dans Firestore');
     }
 
-    const data = await res.json();
     const fields = data.fields || {};
+    const resolvedName = cleanDoctorDisplayName(fields.doctorName?.stringValue || target.doctorName);
+    const resolvedId = cleanDoctorId(fields.doctorId?.stringValue || resolvedName);
+    const isLicensed = fields.isLicensed?.booleanValue !== false && fields.licenseActive?.booleanValue !== false;
 
     const status = {
       connected: true,
-      doctorName: fields.doctorName?.stringValue || CLOUD_CONFIG.defaultDoctorName,
-      doctorId: fields.doctorId?.stringValue || CLOUD_CONFIG.defaultDoctorId,
+      doctorName: resolvedName,
+      doctorId: resolvedId,
       deviceModel: fields.deviceModel?.stringValue || 'Android Smartphone',
       androidVersion: fields.androidVersion?.stringValue || 'Android',
       fcmToken: fields.fcmToken?.stringValue || '',
-      isLicensed: fields.isLicensed?.booleanValue === true,
-      licenseActive: fields.licenseActive?.booleanValue === true,
+      isLicensed,
+      licenseActive: isLicensed,
       licenseKey: fields.licenseKey?.stringValue || '',
       licenseActivatedAt: fields.licenseActivatedAt?.integerValue ? Number(fields.licenseActivatedAt.integerValue) : null,
       lastUpdated: fields.lastUpdated?.integerValue ? Number(fields.lastUpdated.integerValue) : Date.now(),
@@ -84,13 +140,16 @@ export async function fetchDoctorDeviceStatus(forceRefresh = false) {
     try {
       const cached = localStorage.getItem(DOCTOR_DEVICE_CACHE_KEY);
       if (cached) {
-        return { ...JSON.parse(cached), connected: false, fromCache: true };
+        const parsed = JSON.parse(cached);
+        if (parsed.doctorId && !String(parsed.doctorId).startsWith('dr_')) {
+          return { ...parsed, connected: false, fromCache: true };
+        }
       }
     } catch {}
     return {
       connected: false,
-      doctorName: CLOUD_CONFIG.defaultDoctorName,
-      doctorId: CLOUD_CONFIG.defaultDoctorId,
+      doctorName: target.doctorName,
+      doctorId: target.doctorId,
       deviceModel: 'INFINIX Infinix X6726B',
       androidVersion: '15',
       fcmToken: '',
@@ -103,15 +162,22 @@ export async function fetchDoctorDeviceStatus(forceRefresh = false) {
 }
 
 /**
- * Vérifie si un signal d'activation de licence est émis depuis le smartphone Android via Firebase Cloud.
- * Si oui, active automatiquement l'outil DocPocket SMS RDV sur DocPocket Cab.
+ * Synchronise le statut de licence avec Firestore (activation ou révocation à distance via le Keygen).
  */
 export async function checkAndSyncCloudLicense() {
   try {
     const device = await fetchDoctorDeviceStatus();
     if (!device) return { synced: false, reason: "Aucun appareil détecté" };
 
-    const isMobileLicensed = Boolean(device.isLicensed || device.licenseActive || (device.fcmToken && device.connected));
+    // Si le Cloud confirme explicitement que la licence est révoquée, bloquer aussi DocPocket Cab
+    if (device.connected && (!device.isLicensed || !device.licenseActive)) {
+      if (isSmsRdvActivated()) {
+        deactivateSmsLicense();
+      }
+      return { synced: false, revoked: true, reason: "Licence révoquée depuis l'administration." };
+    }
+
+    const isMobileLicensed = Boolean(device.connected && device.isLicensed && device.licenseActive);
     if (isMobileLicensed) {
       const current = getSmsLicenseStatus();
       if (!current.isLicensed) {
@@ -137,18 +203,21 @@ export async function checkAndSyncCloudLicense() {
 }
 
 /**
- * Publie le signal d'activation de la licence vers Firebase Cloud pour interconnexion immédiate
+ * Publie le signal d'activation de la licence vers le profil unique du médecin dans Firestore
  */
 export async function broadcastLicenseToCloud(doctorName, key) {
   try {
-    const url = `${CLOUD_CONFIG.firestoreBase}/devices/doctor_device?updateMask.fieldPaths=isLicensed&updateMask.fieldPaths=licenseActive&updateMask.fieldPaths=licenseKey&updateMask.fieldPaths=licenseActivatedAt&updateMask.fieldPaths=doctorName&key=${CLOUD_CONFIG.apiKey}`;
+    const cleanName = cleanDoctorDisplayName(doctorName);
+    const doctorId = cleanDoctorId(cleanName);
+    const url = `${CLOUD_CONFIG.firestoreBase}/devices/${encodeURIComponent(doctorId)}?updateMask.fieldPaths=doctorId&updateMask.fieldPaths=doctorName&updateMask.fieldPaths=isLicensed&updateMask.fieldPaths=licenseActive&updateMask.fieldPaths=licenseKey&updateMask.fieldPaths=licenseActivatedAt&key=${CLOUD_CONFIG.apiKey}`;
     const payload = {
       fields: {
+        doctorId: { stringValue: doctorId },
+        doctorName: { stringValue: cleanName },
         isLicensed: { booleanValue: true },
         licenseActive: { booleanValue: true },
         licenseKey: { stringValue: key || 'DPSMS-PRO-2026' },
-        licenseActivatedAt: { integerValue: String(Date.now()) },
-        doctorName: { stringValue: doctorName || CLOUD_CONFIG.defaultDoctorName }
+        licenseActivatedAt: { integerValue: String(Date.now()) }
       }
     };
     await fetch(url, {
@@ -345,24 +414,18 @@ export function markAppointmentSmsSent(queueId) {
 /**
  * Formate le texte standard du SMS selon la langue (FR, AR, EN)
  */
-export function buildSmsText(nomPatient, dateRdv, heureRdv, doctorName = 'Dr. Hamed BEN KHALIFA', lang = 'fr') {
-  let dateFormatted = dateRdv;
-  try {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateRdv)) {
-      const [y, m, d] = dateRdv.split('-');
-      dateFormatted = `${d}/${m}/${y}`;
-    }
-  } catch {}
-
+export function buildSmsText(nomPatient, dateRdv, heureRdv, doctorName = CLOUD_CONFIG.defaultDoctorName, lang = 'fr') {
+  const dateFormatted = formatDateDdMmYyyy(dateRdv);
   const cleanName = nomPatient || 'Cher Patient';
+  const cleanDoc = cleanDoctorDisplayName(doctorName);
 
   if (lang === 'ar') {
-    return `مرحباً ${cleanName} ، تذكير بموعدك الطبي يوم ${dateFormatted} على الساعة ${heureRdv} في عيادة الدكتور ${doctorName}.`;
+    return `مرحباً ${cleanName} ، تذكير بموعدك الطبي يوم ${dateFormatted} على الساعة ${heureRdv} في عيادة الدكتور ${cleanDoc}.`;
   }
   if (lang === 'en') {
-    return `Hello ${cleanName}, reminder for your medical appointment on ${dateFormatted} at ${heureRdv} at ${doctorName}'s clinic.`;
+    return `Hello ${cleanName}, reminder for your medical appointment on ${dateFormatted} at ${heureRdv} at Dr ${cleanDoc}'s clinic.`;
   }
-  return `Bonjour ${cleanName}, nous vous rappelons votre RDV médical le ${dateFormatted} à ${heureRdv} au cabinet du ${doctorName}.`;
+  return `Bonjour ${cleanName}, nous vous rappelons votre RDV médical le ${dateFormatted} à ${heureRdv} au cabinet du Dr ${cleanDoc}.`;
 }
 
 /**
@@ -415,15 +478,22 @@ export async function transmitAppointmentToMobile(appointment, options = {}) {
   // 2. Enregistrement immédiat dans la file locale DocPocket Cab
   const queuedEntry = recordTransmittedAppointment(appointment);
 
-  // 3. Récupération des infos du smartphone Android (Infinix)
-  const device = await fetchDoctorDeviceStatus();
-  const doctorName = device.doctorName || CLOUD_CONFIG.defaultDoctorName;
-  const doctorId = device.doctorId || CLOUD_CONFIG.defaultDoctorId;
+  // 3. Récupération des infos fraîches du smartphone Android depuis Firestore
+  const device = await fetchDoctorDeviceStatus(true);
+  if (device.connected && (!device.isLicensed || !device.licenseActive)) {
+    return {
+      success: false,
+      revoked: true,
+      message: "Licence DocPocket SMS RDV révoquée. Impossible d'envoyer le rappel."
+    };
+  }
+  const doctorName = cleanDoctorDisplayName(device.doctorName || CLOUD_CONFIG.defaultDoctorName);
+  const doctorId = cleanDoctorId(device.doctorId || doctorName);
   const fcmToken = device.fcmToken || '';
 
   const nomPatient = appointment.patientName || appointment.nomPatient || 'Patient';
   const telephone = (appointment.telephone || '').replace(/\s+/g, '');
-  const dateRdv = appointment.rdvDate || appointment.dateRdv;
+  const dateRdv = formatDateDdMmYyyy(appointment.rdvDate || appointment.dateRdv);
   const heureRdv = appointment.rdvTime || appointment.heureRdv || '10:00';
   const language = appointment.language || 'fr';
   const texteSms = appointment.texteSms || buildSmsText(nomPatient, dateRdv, heureRdv, doctorName, language);
@@ -474,9 +544,9 @@ export async function transmitAppointmentToMobile(appointment, options = {}) {
     console.warn("Erreur transmission Cloud Firestore docpocket-rdv :", err.message);
   }
 
-  // 5. Déclenchement de l'API Vercel Cron de réveil si le rappel est dû immédiatement (ou forcé)
+  // 5. Déclenchement de l'API Vercel Cron de réveil si le rappel est dû immédiatement (ou dans les 2 min)
   const now = Date.now();
-  const isImmediate = forceImmediate || reminderTimestamp <= (now + 60000);
+  const isImmediate = forceImmediate || reminderTimestamp <= (now + 120000);
   let cronResult = null;
   if (isImmediate) {
     try {
